@@ -1,0 +1,78 @@
+---
+title: "REFSA COVID-19 Malaysia Response"
+author: "REFSA Research Team"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document: 
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+# Load libraries
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(dplyr)
+
+# Load REFSA logo
+# refsa_logo <- png::readPNG("Logo.png")
+
+# Load data
+# ===== Google Mobility Reports =====
+# https://www.apple.com/covid19/mobility
+# mobi <- read.csv("https://covid19-static.cdn-apple.com/covid19-mobility-data/2007HotfixDev48/v2/en-us/applemobilitytrends-2020-05-04.csv", na.strings = "", fileEncoding = "UTF-8-BOM")
+mobi <- read_csv("2020_MY_Region_Mobility_Report.csv")
+
+# ===== Covid test and cases (Our World in Data) =====
+# https://www.ecdc.europa.eu/en/publications-data/download-todays-data-geographic-distribution-covid-19-cases-worldwide
+covid_data <- read_csv("covid-19-daily-tests-vs-daily-new-confirmed-cases-per-million.csv")
+
+```
+
+
+## Objective
+
+Malaysia is currently struggling to deal with the third wave of the Covid-19 pandemic. This analysis aims to highlight a few data points that illuminate the response so far of the government, and where additional investment may be required. 
+
+ 1. Test positivity rate, and the need to perform more testing
+ 2. Changes in mobility, related to the positivity rate
+ 
+## Test positivity rate
+
+The test positivity rate is still quite elevated in Malaysia, above the minimum threshold recommended by the WHO (5%), and especially high compared to a successful country in managing Covid-19, South Korea. The following charts depict the evolution of number of new cases, number of tests, and positivity rate. All data is 7-day smoothed (rolling average); people tested are per 1,000 population; new daily cases are per million population.
+
+Source: Our World In Data. 
+
+```{r covid-19-linear, echo=FALSE}
+
+# Filter COVID-19 data for Malaysia and South Korea
+geo_ids <- c("MYS", "KOR")
+covid_data_m <- filter(covid_data, Code %in% geo_ids)
+
+# No need to convert the date, R recognised it as a date field in the CSV
+# Convert string date to Date
+# covid_data_MYd <- covid_data_m %>% mutate(date = dmy(Date))
+
+# Sort rows in ascending order (by Date)
+covid_data_MYd <- arrange(covid_data_m, Date)
+
+# Calculate cumulative number of cases and deaths - not required here, plot is relative
+# covid_data_MYd <- covid_data_MYd %>% group_by(geoId) %>% mutate(cumCases = cumsum(cases))
+# covid_data_MYd <- covid_data_MYd %>% group_by(geoId) %>% mutate(cumDeaths = cumsum(deaths))
+
+# covid_data_clean <- na.omit(covid_data_MYd)
+
+```
+
+```{r covid-plot, echo=FALSE}
+
+# Plot MY COVID-19 cases
+covid_my_plot <- ggplot(data = covid_data_MYd) + 
+  geom_line(aes(x = Date, y = DailyTests, color = Code, group = Code)) +
+#  geom_line(aes(x = date, y = , color = geoId), linetype = "dashed") +
+   scale_x_date(name = "Date")
+covid_my_plot
+```
