@@ -28,7 +28,7 @@ mobi <- read_csv("2020_MY_Region_Mobility_Report.csv")
 
 # ===== Covid test and cases (Our World in Data) =====
 # https://www.ecdc.europa.eu/en/publications-data/download-todays-data-geographic-distribution-covid-19-cases-worldwide
-covid_data <- read_csv("covid-19-daily-tests-vs-daily-new-confirmed-cases-per-million.csv")
+covid_data <- read_csv("covid-19-daily-tests-vs-daily-new-confirmed-cases-per-million.csv", col_types = cols(Entity = col_character(), Code = col_character(), Year = col_character(), Continent = col_character(), Date = col_date(), DailyTests = col_double(), DailyTestsNotes = col_character(), DailyCases = col_double()))
 
 ```
 
@@ -52,12 +52,15 @@ Source: Our World In Data.
 geo_ids <- c("MYS", "KOR")
 covid_data_m <- filter(covid_data, Code %in% geo_ids)
 
-# No need to convert the date, R recognised it as a date field in the CSV
-# Convert string date to Date
-# covid_data_MYd <- covid_data_m %>% mutate(date = dmy(Date))
+# Only use data from September onwards
+covid_data_m <- filter(covid_data_m, Date > ymd("2020-10-31") & Date < ymd("2021-01-23"))
 
-# Sort rows in ascending order (by Date)
-covid_data_MYd <- arrange(covid_data_m, Date)
+# Calculate the test positivity rate
+covid_data_MYd <- covid_data_m %>% mutate(DailyPosRate = (DailyCases / (DailyTests * 1000)) * 100)
+
+# Filter NA's and sort rows in ascending order (by Date)
+# covid_data_MYd <- filter(covid_data_MYd, ! is.na(DailyTests))
+covid_data_MYd <- arrange(covid_data_MYd, Date)
 
 # Calculate cumulative number of cases and deaths - not required here, plot is relative
 # covid_data_MYd <- covid_data_MYd %>% group_by(geoId) %>% mutate(cumCases = cumsum(cases))
@@ -69,10 +72,25 @@ covid_data_MYd <- arrange(covid_data_m, Date)
 
 ```{r covid-plot, echo=FALSE}
 
+# New facet labels for countries
+country.labs <- c("South Korea", "Malaysia")
+names(country.labs) <- c("KOR", "MYS")
+
 # Plot MY COVID-19 cases
-covid_my_plot <- ggplot(data = covid_data_MYd) + 
-  geom_line(aes(x = Date, y = DailyTests, color = Code, group = Code)) +
-#  geom_line(aes(x = date, y = , color = geoId), linetype = "dashed") +
-   scale_x_date(name = "Date")
-covid_my_plot
+covid_dailytests_plot <- ggplot(data = covid_data_MYd, aes(x=Date)) + 
+  geom_bar(aes(y = DailyCases / 10), stat = "identity", size = .1, fill = "#FFDE00", color = "#FFDE00", alpha = .6) +  
+  geom_line(aes(y = DailyPosRate), color = "#1252B3") +
+  scale_x_date(name = "Date") +
+  scale_y_continuous(
+    
+    # Left axis
+    name = "Test positivity rate (%)", breaks = seq(0,12,1),
+    
+    # Right axis
+    sec.axis = sec_axis(~.*10, name = "Daily cases (per million)", breaks=seq(0,120,10))
+  ) + 
+  labs(title = "Test positivity rate and daily new cases", caption = "From 01-Nov-2020 to 22-Jan-2021. Daily new cases are 7-day rolling average. Source: Our World In Data.")
+  
+covid_dailytests_plot + facet_wrap(~ Code, labeller = labeller(Code = country.labs))
+
 ```
