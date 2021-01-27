@@ -1,4 +1,4 @@
-Entity,Code,Year,Continent,Date,new_tests_per_thousand_7day_smoothed,new_tests_per_thousand_7day_smoothed Annotations,"Daily new confirmed cases of COVID-19 per million people (rolling 7-day average, right-aligned)"
+Entity,Code,Year,Continent,Date,DailyTests,DailyTestsNotes,DailyCases
 Abkhazia,OWID_ABK,2015,Asia,,,,
 Afghanistan,AFG,2015,Asia,,,,
 Afghanistan,AFG,,,2020-02-26,,,0.00867
