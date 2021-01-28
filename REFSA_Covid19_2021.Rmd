@@ -94,3 +94,25 @@ covid_dailytests_plot <- ggplot(data = covid_data_MYd, aes(x=Date)) +
 covid_dailytests_plot + facet_wrap(~ Code, labeller = labeller(Code = country.labs))
 
 ```
+
+## Mobility
+Analysis of mobility is based on Google's data for Malaysia. 
+The charts below show the percent change compared to a baseline. The baseline is the median number of daily routing requests between early January to early February 2020. 
+
+```{r mobility, echo=FALSE}
+
+# Filter the raw data to only include nationwide change and correct date range
+mobi_nation <- filter(mobi, is.na(sub_region_1) & date > ymd("2020-08-31"))
+
+# The data is shown in tabular format, not very useful for analysis, so need to pivot the different categories into one column
+mobi_nation_pivot <- mobi_nation %>% pivot_longer(c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"), names_to = "category", values_to = "change_from_baseline")
+
+# plot the data
+mobi_plot <- ggplot(data = mobi_nation_pivot) +
+  geom_line(aes(x = date, y = change_from_baseline, color = category)) +
+  scale_x_date(name = "Date") +
+  theme(legend.position = "none")
+
+mobi_plot + facet_wrap(~ category)
+
+```
