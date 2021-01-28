@@ -104,6 +104,10 @@ The charts below show the percent change compared to a baseline. The baseline is
 # Filter the raw data to only include nationwide change and correct date range
 mobi_nation <- filter(mobi, is.na(sub_region_1) & date > ymd("2020-08-31"))
 
+# New facet labels for place categories
+dest_cats.labs <- c("Retail & Rec", "Grocery & Pharmacy", "Parks", "Transit Stations", "Workplaces", "Residential")
+names(dest_cats.labs) <- c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline")
+
 # The data is shown in tabular format, not very useful for analysis, so need to pivot the different categories into one column
 mobi_nation_pivot <- mobi_nation %>% pivot_longer(c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"), names_to = "category", values_to = "change_from_baseline")
 
@@ -111,8 +115,38 @@ mobi_nation_pivot <- mobi_nation %>% pivot_longer(c("retail_and_recreation_perce
 mobi_plot <- ggplot(data = mobi_nation_pivot) +
   geom_line(aes(x = date, y = change_from_baseline, color = category)) +
   scale_x_date(name = "Date") +
+  scale_y_continuous(name = "Change from baseline (%)") +
   theme(legend.position = "none")
 
-mobi_plot + facet_wrap(~ category)
+mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs))
+
+```
+
+The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. 
+
+## Test positivity rate vs mobility
+The chart below shows the evolution of the test positivity rate and the mobility data related to transit stations. 
+
+```{r posrate-mobility, echo=FALSE}
+
+# Filter the mobility date to keep only the transit stations
+mobi_nation_transit <- filter(mobi_nation_pivot, category == "transit_stations_percent_change_from_baseline")
+
+# Filter the test positivity data for Malaysia only; recalculate the positivity rate
+testdata_my <- filter(covid_data, Code == "MYS" & Date > ymd("2020-08-31") & Date < ymd("2021-01-23"))
+testposrate_my <- testdata_my %>% mutate(DailyPosRate = (DailyCases / (DailyTests * 1000)) * 100)
+
+# Join the mobility table with the test positivity rate table
+# First rename the 'date' column in the mobility data to 'Date' for the join to work
+mobi_nation_transit <- mobi_nation_transit %>% rename(Date = date)
+
+testposrate_mobi_my <- testposrate_my %>% select(-Year, -Continent, -DailyTestsNotes) %>% left_join(mobi_nation_transit, by = "Date")
+
+tpr_mobi_p <- ggplot(data = testposrate_mobi_my) +
+  geom_line(aes(x = Date, y = DailyPosRate), color = "red") + 
+  geom_line(aes(x = Date, y = change_from_baseline), color = "blue")
+
+tpr_mobi_p
+
 
 ```

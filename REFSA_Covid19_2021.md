@@ -1,7 +1,7 @@
 ---
 title: "REFSA COVID-19 Malaysia Response"
 author: "REFSA Research Team"
-date: "2021-01-27"
+date: "2021-01-28"
 output: 
   html_document: 
     keep_md: true
@@ -26,3 +26,16 @@ Source: Our World In Data.
 
 
 ![](REFSA_Covid19_2021_files/figure-html/covid-plot-1.png)<!-- -->
+
+## Mobility
+Analysis of mobility is based on Google's data for Malaysia. 
+The charts below show the percent change compared to a baseline. The baseline is the median number of daily routing requests between early January to early February 2020. 
+
+![](REFSA_Covid19_2021_files/figure-html/mobility-1.png)<!-- -->
+
+The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. 
+
+## Test positivity rate vs mobility
+The chart below shows the evolution of the test positivity rate and the mobility data related to transit stations. 
+
+![](REFSA_Covid19_2021_files/figure-html/posrate-mobility-1.png)<!-- -->
