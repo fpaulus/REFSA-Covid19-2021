@@ -1,5 +1,5 @@
 ---
-title: "REFSA COVID-19 Malaysia Response"
+title: "REFSA COVID-19 Response—MCO 2.0"
 author: "REFSA Research Team"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: 
@@ -16,6 +16,8 @@ library(ggplot2)
 library(scales)
 library(lubridate)
 library(dplyr)
+library(zoo)
+library(hrbrthemes)
 
 # Load REFSA logo
 # refsa_logo <- png::readPNG("Logo.png")
@@ -122,7 +124,47 @@ mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs
 
 ```
 
-The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. 
+The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. Looking at that chart in isolation: 
+
+```{r mobility-transit, echo=FALSE}
+
+mobi_plot_transit <- ggplot(data = filter(mobi_nation_pivot, category == "transit_stations_percent_change_from_baseline")) +
+  geom_area(aes(x = date, y = change_from_baseline), color = "blue", fill = "blue") +
+  scale_x_date(name = "Date") +
+  scale_y_continuous(name = "Change from baseline (%)") +
+  theme(legend.position = "none") +
+  geom_vline(xintercept = ymd("2020-12-06")) +
+  geom_text(mapping = aes(x = ymd("2020-12-06"), y = 0, label = "interstate travel", hjust = 0, vjust = 0))
+
+mobi_plot_transit
+
+```
+
+In order to see the trend better, we also compute a 7-day rolling average for the same data, across the whole data set. 
+
+```{r mobility-7da, echo=FALSE}
+
+# Pivot the full table to move all destination categories to one column. 
+mobi_full_pivot <- mobi %>% pivot_longer(c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"), names_to = "category", values_to = "change_from_baseline")
+
+# Filter the table to pick up only national data; Add a column with 7-day rolling average
+mobi_7da <- filter(mobi_full_pivot, is.na(sub_region_1)) %>%
+  arrange(desc(category)) %>%
+  group_by(category) %>%
+  mutate(change_from_baseline_7da = rollmean(change_from_baseline, 21, fill = NA)) %>%
+  ungroup()
+
+# plot the data; re-using the labels defined in the mobility block. 
+mobi_plot <- ggplot(data = mobi_7da) +
+  geom_area(aes(x = date, y = change_from_baseline_7da, color = category, fill = category)) +
+  scale_x_date(name = "Date") +
+  scale_y_continuous(name = "Change from baseline (%)") +
+  theme(legend.position = "none")
+
+mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs))
+
+
+```
 
 ## Test positivity rate vs mobility
 The chart below shows the evolution of the test positivity rate and the mobility data related to transit stations. 

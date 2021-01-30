@@ -1,7 +1,7 @@
 ---
-title: "REFSA COVID-19 Malaysia Response"
+title: "REFSA COVID-19 Response—MCO 2.0"
 author: "REFSA Research Team"
-date: "2021-01-28"
+date: "2021-01-30"
 output: 
   html_document: 
     keep_md: true
@@ -33,7 +33,13 @@ The charts below show the percent change compared to a baseline. The baseline is
 
 ![](REFSA_Covid19_2021_files/figure-html/mobility-1.png)<!-- -->
 
-The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. 
+The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. Looking at that chart in isolation: 
+
+![](REFSA_Covid19_2021_files/figure-html/mobility-transit-1.png)<!-- -->
+
+In order to see the trend better, we also compute a 7-day rolling average for the same data, across the whole data set. 
+
+![](REFSA_Covid19_2021_files/figure-html/mobility-7da-1.png)<!-- -->
 
 ## Test positivity rate vs mobility
 The chart below shows the evolution of the test positivity rate and the mobility data related to transit stations. 
