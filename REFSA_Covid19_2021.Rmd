@@ -7,6 +7,7 @@ output:
     keep_md: true
 ---
 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
@@ -129,7 +130,7 @@ The effect of the resumption of interstate travel on 2020-12-07 is well visible 
 ```{r mobility-transit, echo=FALSE}
 
 mobi_plot_transit <- ggplot(data = filter(mobi_nation_pivot, category == "transit_stations_percent_change_from_baseline")) +
-  geom_area(aes(x = date, y = change_from_baseline), color = "blue", fill = "blue") +
+  geom_area(aes(x = date, y = change_from_baseline), color = "#1252B3", fill = "#0D6EFF", alpha = 0.33) +
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Change from baseline (%)") +
   theme(legend.position = "none") +
@@ -156,7 +157,7 @@ mobi_7da <- filter(mobi_full_pivot, is.na(sub_region_1)) %>%
 
 # plot the data; re-using the labels defined in the mobility block. 
 mobi_plot <- ggplot(data = mobi_7da) +
-  geom_area(aes(x = date, y = change_from_baseline_7da, color = category, fill = category)) +
+  geom_area(aes(x = date, y = change_from_baseline_7da, color = category, fill = category), alpha = 0.33) +
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Change from baseline (%)") +
   theme(legend.position = "none")
