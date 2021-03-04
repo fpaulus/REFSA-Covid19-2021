@@ -24,14 +24,18 @@ library(hrbrthemes)
 # refsa_logo <- png::readPNG("Logo.png")
 
 # Load data
+
 # ===== Google Mobility Reports =====
-# https://www.apple.com/covid19/mobility
-# mobi <- read.csv("https://covid19-static.cdn-apple.com/covid19-mobility-data/2007HotfixDev48/v2/en-us/applemobilitytrends-2020-05-04.csv", na.strings = "", fileEncoding = "UTF-8-BOM")
-mobi <- read_csv("2020_MY_Region_Mobility_Report.csv")
+# https://www.apple.com/covid19/mobility (alternative source)
+# mobi <- read_csv("https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv")
 
 # ===== Covid test and cases (Our World in Data) =====
-# https://www.ecdc.europa.eu/en/publications-data/download-todays-data-geographic-distribution-covid-19-cases-worldwide
-covid_data <- read_csv("covid-19-daily-tests-vs-daily-new-confirmed-cases-per-million.csv", col_types = cols(Entity = col_character(), Code = col_character(), Year = col_character(), Continent = col_character(), Date = col_date(), DailyTests = col_double(), DailyTestsNotes = col_character(), DailyCases = col_double()))
+# https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
+covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases_per_million.csv")
+
+# ===== Covid test data (Our World in Data) =====
+# https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv
+covid_tests <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/testing/covid-testing-all-observations.csv")
 
 ```
 
@@ -51,25 +55,25 @@ Source: Our World In Data.
 
 ```{r covid-19-linear, echo=FALSE}
 
-# Filter COVID-19 data for Malaysia and South Korea
-geo_ids <- c("MYS", "KOR")
-covid_data_m <- filter(covid_data, Code %in% geo_ids)
+# ===== Data wrangling =====
 
-# Only use data from September onwards
-covid_data_m <- filter(covid_data_m, Date > ymd("2020-10-31") & Date < ymd("2021-01-23"))
+# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column
+covid_cases_pivot <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
 
-# Calculate the test positivity rate
-covid_data_MYd <- covid_data_m %>% mutate(DailyPosRate = (DailyCases / (DailyTests * 1000)) * 100)
+# Filter COVID-19 data for Malaysia and South Korea, from 2020-10-31 to 2021-02-28
+
+# Define filter values
+iso_codes <- c("MYS", "KOR")
+countries <- c("Malaysia", "South Korea")
+
+covid_cases_m <- filter(covid_cases_pivot, country %in% countries & date > ymd("2020-10-31") & date < ymd("2021-03-01"))
+covid_tests_m <- filter(covid_tests, covid_tests$`ISO code` %in% iso_codes & covid_tests$Date > ymd("2020-10-31") & covid_tests$Date < ymd("2021-03-01"))
 
 # Filter NA's and sort rows in ascending order (by Date)
-# covid_data_MYd <- filter(covid_data_MYd, ! is.na(DailyTests))
-covid_data_MYd <- arrange(covid_data_MYd, Date)
+covid_cases_m <- arrange(covid_cases_m, date)
+covid_tests_m <- arrange(covid_tests_m, Date)
 
-# Calculate cumulative number of cases and deaths - not required here, plot is relative
-# covid_data_MYd <- covid_data_MYd %>% group_by(geoId) %>% mutate(cumCases = cumsum(cases))
-# covid_data_MYd <- covid_data_MYd %>% group_by(geoId) %>% mutate(cumDeaths = cumsum(deaths))
 
-# covid_data_clean <- na.omit(covid_data_MYd)
 
 ```
 
@@ -79,22 +83,27 @@ covid_data_MYd <- arrange(covid_data_MYd, Date)
 country.labs <- c("South Korea", "Malaysia")
 names(country.labs) <- c("KOR", "MYS")
 
-# Plot MY COVID-19 cases
-covid_dailytests_plot <- ggplot(data = covid_data_MYd, aes(x=Date)) + 
-  geom_bar(aes(y = DailyCases / 10), stat = "identity", size = .1, fill = "#FFDE00", color = "#FFDE00", alpha = .6) +  
-  geom_line(aes(y = DailyPosRate), color = "#1252B3") +
+# Plot daily tests
+covid_dailytests_plot <- ggplot(data = covid_tests_m) + 
+#  geom_bar(aes(y = covid_test_data_m$`Daily change in cumulative total`), stat = "identity", size = .1, fill = "#FFDE00", color = "#FFDE00", alpha = .6) +  
+  geom_line(aes(x = covid_tests_m$Date, y = covid_tests_m$`7-day smoothed daily change per thousand`, color = covid_tests_m$`ISO code`)) +
   scale_x_date(name = "Date") +
-  scale_y_continuous(
-    
-    # Left axis
-    name = "Test positivity rate (%)", breaks = seq(0,12,1),
-    
-    # Right axis
-    sec.axis = sec_axis(~.*10, name = "Daily cases (per million)", breaks=seq(0,120,10))
-  ) + 
-  labs(title = "Test positivity rate and daily new cases", caption = "From 01-Nov-2020 to 22-Jan-2021. Daily new cases are 7-day rolling average. Source: Our World In Data.")
-  
-covid_dailytests_plot + facet_wrap(~ Code, labeller = labeller(Code = country.labs))
+  scale_y_continuous() + 
+  labs(title = "Daily tests for South Korea and Malaysia (7-day rolling average)", caption = "From 01-Nov-2020 to 28-Feb-2021. Source: Our World In Data.")
+
+covid_dailytests_plot
+
+# Plot test positivity rate
+covid_posrate_plot <- ggplot(data = covid_tests_m) + 
+#  geom_bar(aes(y = covid_test_data_m$`Daily change in cumulative total`), stat = "identity", size = .1, fill = "#FFDE00", color = "#FFDE00", alpha = .6) +  
+  geom_line(aes(x = covid_tests_m$Date, y = covid_tests_m$`Short-term positive rate`, color = covid_tests_m$`ISO code`)) +
+  scale_x_date(name = "Date") +
+  scale_y_continuous() + 
+  labs(title = "Short-term test positivity rate for South Korea and Malaysia", caption = "From 01-Nov-2020 to 28-Feb-2021. Source: Our World In Data.")
+
+covid_posrate_plot
+
+
 
 ```
 
@@ -126,6 +135,8 @@ mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs
 ```
 
 The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. Looking at that chart in isolation: 
+
+
 
 ```{r mobility-transit, echo=FALSE}
 
