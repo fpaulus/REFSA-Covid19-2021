@@ -5,6 +5,8 @@ date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: 
   html_document: 
     keep_md: true
+fig.width: 6
+fig.asp: 0.618
 ---
 
 
@@ -27,7 +29,7 @@ library(hrbrthemes)
 
 # ===== Google Mobility Reports =====
 # https://www.apple.com/covid19/mobility (alternative source)
-# mobi <- read_csv("https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv")
+mobi <- read_csv("2020_MY_Region_Mobility_Report.csv")
 
 # ===== Covid test and cases (Our World in Data) =====
 # https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
@@ -40,16 +42,12 @@ covid_tests <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/ma
 ```
 
 
-## Objective
+This tracker brings together a number of oft-referred to statistics to monitor the evolution of the Covid-19 pandemic in Malaysia, and highlight some interesting data points. As of now, the following data is included: 
 
-Malaysia is currently struggling to deal with the third wave of the Covid-19 pandemic. This analysis aims to highlight a few data points that illuminate the response so far of the government, and where additional investment may be required. 
-
- 1. Test positivity rate, and the need to perform more testing
- 2. Changes in mobility, related to the positivity rate
+ 1. Daily count of tests, cases and test positivity rate
+ 2. Mobility data, based on Google's Covid-19 location data
  
-## Test positivity rate
-
-The test positivity rate is still quite elevated in Malaysia, above the minimum threshold recommended by the WHO (5%), and especially high compared to a successful country in managing Covid-19, South Korea. The following charts depict the evolution of number of new cases, number of tests, and positivity rate. All data is 7-day smoothed (rolling average); people tested are per 1,000 population; new daily cases are per million population.
+## Tests, cases and positivity rate
 
 Source: Our World In Data. 
 
@@ -66,66 +64,137 @@ covid_cases_pivot <- covid_cases %>% pivot_longer(!date, names_to = "country", v
 iso_codes <- c("MYS", "KOR")
 countries <- c("Malaysia", "South Korea")
 
-covid_cases_m <- filter(covid_cases_pivot, country %in% countries & date > ymd("2020-10-31") & date < ymd("2021-03-01"))
-covid_tests_m <- filter(covid_tests, covid_tests$`ISO code` %in% iso_codes & covid_tests$Date > ymd("2020-10-31") & covid_tests$Date < ymd("2021-03-01"))
+date_from <- ymd("2020-09-30")
+date_to <- ymd("2021-03-01")
+
+# Filter case data and rename columns for ease of use; add an ISO code column for easy matching
+covid_cases_m <- filter(covid_cases_pivot, country %in% countries & date > date_from & date < date_to)
+covid_cases_m <- rename(covid_cases_m, 
+                        record.date = `date`,
+                        daily.cases.per.million = `cases`)
+covid_cases_m <- covid_cases_m %>% mutate(ISO.code = case_when(
+  country == "Malaysia" ~ "MYS",
+  country == "South Korea" ~ "KOR",
+  TRUE ~ country
+))
+
+# Filter tests data according to parameters and only useful columns; rename columns for ease of use
+covid_tests_m <- filter(covid_tests, covid_tests$`ISO code` %in% iso_codes & covid_tests$Date > date_from & covid_tests$Date < date_to) %>% select(c("ISO code", "Date", "Daily change in cumulative total", "Daily change in cumulative total per thousand", "7-day smoothed daily change", "7-day smoothed daily change per thousand", "Short-term positive rate", "Short-term tests per case")) 
+covid_tests_m <- rename(covid_tests_m, 
+      ISO.code = `ISO code`, 
+      record.date = `Date`,
+      daily.tests = `Daily change in cumulative total`, 
+      daily.tests.per.thousand = `Daily change in cumulative total per thousand`, 
+      smoothed.daily.change = `7-day smoothed daily change`, 
+      smoothed.daily.change.per.thousand = `7-day smoothed daily change per thousand`, 
+      st.pos.rate = `Short-term positive rate`, 
+      st.tests.per.case = `Short-term tests per case`)
 
 # Filter NA's and sort rows in ascending order (by Date)
-covid_cases_m <- arrange(covid_cases_m, date)
-covid_tests_m <- arrange(covid_tests_m, Date)
+covid_cases_m <- arrange(covid_cases_m, record.date)
+covid_tests_m <- arrange(covid_tests_m, record.date)
 
+# Merge cases and tests data
+covid_all <- covid_tests_m %>% left_join(covid_cases_m, by = c("ISO.code", "record.date"))
 
 
 ```
 
-```{r covid-plot, echo=FALSE}
+### Evolution of testing 
+
+```{r covid-daily-tests}
 
 # New facet labels for countries
 country.labs <- c("South Korea", "Malaysia")
 names(country.labs) <- c("KOR", "MYS")
 
-# Plot daily tests
-covid_dailytests_plot <- ggplot(data = covid_tests_m) + 
-#  geom_bar(aes(y = covid_test_data_m$`Daily change in cumulative total`), stat = "identity", size = .1, fill = "#FFDE00", color = "#FFDE00", alpha = .6) +  
-  geom_line(aes(x = covid_tests_m$Date, y = covid_tests_m$`7-day smoothed daily change per thousand`, color = covid_tests_m$`ISO code`)) +
+# Plot daily tests (per thousand)
+covid_dailytests_plot <- ggplot(data = covid_all, aes(x = record.date)) + 
+  geom_bar(aes(y = daily.tests.per.thousand, colour = ISO.code), stat = "identity") + 
   scale_x_date(name = "Date") +
-  scale_y_continuous() + 
-  labs(title = "Daily tests for South Korea and Malaysia (7-day rolling average)", caption = "From 01-Nov-2020 to 28-Feb-2021. Source: Our World In Data.")
+  scale_y_continuous(name = "Count") + 
+  labs(title = "Daily tests per thousand for South Korea and Malaysia", caption = "From 01-Oct-2020 to 28-Feb-2021. Source: Our World In Data.") +
+  theme(legend.position = "none")
 
-covid_dailytests_plot
+covid_dailytests_plot + facet_wrap( ~ ISO.code)
+
+```
+
+### Evolution of daily cases
+
+```{r covid-daily-cases}
+
+# Plot daily cases (per million) 
+covid_dailycases_plot <- ggplot(data = covid_all, aes(x = record.date)) + 
+  geom_bar(aes(y = daily.cases.per.million, colour = ISO.code), stat = "identity") + 
+  scale_x_date(name = "Date") +
+  scale_y_continuous(name = "Count") + 
+  labs(title = "Daily cases per million for South Korea and Malaysia", caption = "From 01-Oct-2020 to 28-Feb-2021. Source: Our World In Data.") +
+  theme(legend.position = "none")
+
+covid_dailycases_plot + facet_wrap( ~ ISO.code)
+
+```
+
+### Evolution of test positivity rate
+
+This rate shows the short-term positivity rate of tests. 
+
+```{r covid-posrate}
 
 # Plot test positivity rate
-covid_posrate_plot <- ggplot(data = covid_tests_m) + 
-#  geom_bar(aes(y = covid_test_data_m$`Daily change in cumulative total`), stat = "identity", size = .1, fill = "#FFDE00", color = "#FFDE00", alpha = .6) +  
-  geom_line(aes(x = covid_tests_m$Date, y = covid_tests_m$`Short-term positive rate`, color = covid_tests_m$`ISO code`)) +
+covid_posrate_plot <- ggplot(data = covid_all) + 
+  geom_line(aes(x = record.date, y = st.pos.rate, color = ISO.code)) +
   scale_x_date(name = "Date") +
-  scale_y_continuous() + 
-  labs(title = "Short-term test positivity rate for South Korea and Malaysia", caption = "From 01-Nov-2020 to 28-Feb-2021. Source: Our World In Data.")
+  scale_y_continuous(labels = scales::percent, name = "Percent") + 
+  labs(title = "Short-term test positivity rate for South Korea and Malaysia", caption = "From 01-Oct-2020 to 28-Feb-2021. Source: Our World In Data.") + 
+  theme(legend.position = "none")
 
-covid_posrate_plot
-
-
+covid_posrate_plot + facet_wrap(~ ISO.code)
 
 ```
 
 ## Mobility
+
 Analysis of mobility is based on Google's data for Malaysia. 
 The charts below show the percent change compared to a baseline. The baseline is the median number of daily routing requests between early January to early February 2020. 
 
 ```{r mobility, echo=FALSE}
 
 # Filter the raw data to only include nationwide change and correct date range
-mobi_nation <- filter(mobi, is.na(sub_region_1) & date > ymd("2020-08-31"))
+mobi_nation <- filter(mobi, is.na(sub_region_1) & date > date_from & date < date_to)
+mobi_nation <- rename(mobi_nation, 
+                      retail.rec = "retail_and_recreation_percent_change_from_baseline", 
+                      grocery.pharmacy = "grocery_and_pharmacy_percent_change_from_baseline", 
+                      parks = "parks_percent_change_from_baseline", 
+                      transit = "transit_stations_percent_change_from_baseline", 
+                      workplaces = "workplaces_percent_change_from_baseline", 
+                      residential = "residential_percent_change_from_baseline")
 
 # New facet labels for place categories
 dest_cats.labs <- c("Retail & Rec", "Grocery & Pharmacy", "Parks", "Transit Stations", "Workplaces", "Residential")
-names(dest_cats.labs) <- c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline")
+names(dest_cats.labs) <- c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential")
 
 # The data is shown in tabular format, not very useful for analysis, so need to pivot the different categories into one column
-mobi_nation_pivot <- mobi_nation %>% pivot_longer(c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"), names_to = "category", values_to = "change_from_baseline")
+mobi_nation <- mobi_nation %>% pivot_longer(c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential"), names_to = "category", values_to = "change.from.baseline")
 
-# plot the data
-mobi_plot <- ggplot(data = mobi_nation_pivot) +
-  geom_line(aes(x = date, y = change_from_baseline, color = category)) +
+```
+
+### Change from baseline across categories
+
+This chart shows the change in destinations relative to a pre-pandemic baseline, smoothed using a 7-day rolling average. Each time movement restrictions are announced, there is a noticeable drop in retail and recreation destinations as well as transit stations. 
+
+```{r mobi-plot-all}
+
+# Filter the table to pick up only national data; Add a column with 7-day rolling average
+mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
+  group_by(category) %>%
+  mutate(change.from.baseline.smooth = rollmean(change.from.baseline, 7, fill = NA)) %>%
+  ungroup()
+
+# plot the data; re-using the labels defined in the mobility block. 
+mobi_plot <- ggplot(data = mobi_nation) +
+  geom_area(aes(x = date, y = change.from.baseline.smooth, color = category, fill = category), alpha = 0.33) +
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Change from baseline (%)") +
   theme(legend.position = "none")
@@ -136,71 +205,23 @@ mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs
 
 The effect of the resumption of interstate travel on 2020-12-07 is well visible in the "Transit Stations" category. From that day there is a clear uptick in the number of requests for transit stations. Looking at that chart in isolation: 
 
-
-
 ```{r mobility-transit, echo=FALSE}
 
-mobi_plot_transit <- ggplot(data = filter(mobi_nation_pivot, category == "transit_stations_percent_change_from_baseline")) +
-  geom_area(aes(x = date, y = change_from_baseline), color = "#1252B3", fill = "#0D6EFF", alpha = 0.33) +
+mobi_plot_transit <- ggplot(data = filter(mobi_nation, category == "transit")) +
+  geom_area(aes(x = date, y = change.from.baseline), color = "#1252B3", fill = "#0D6EFF", alpha = 0.33) +
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Change from baseline (%)") +
   theme(legend.position = "none") +
   geom_vline(xintercept = ymd("2020-12-06")) +
-  geom_text(mapping = aes(x = ymd("2020-12-06"), y = 0, label = "interstate travel", hjust = 0, vjust = 0))
+  geom_text(mapping = aes(x = ymd("2020-12-06"), y = 0, label = "interstate travel", hjust = 0, vjust = 0)) +
+  geom_vline(xintercept = ymd("2020-10-14")) +
+  geom_text(mapping = aes(x = ymd("2020-10-14"), y = 0, label = "MCO 2.0", hjust = 0, vjust = 0)) + 
+  geom_vline(xintercept = ymd("2021-01-13")) +
+  geom_text(mapping = aes(x = ymd("2021-01-13"), y = 0, label = "MCO 3.0", hjust = 0, vjust = 0))
 
 mobi_plot_transit
 
 ```
 
-In order to see the trend better, we also compute a 7-day rolling average for the same data, across the whole data set. 
+For further analysis, we could look to include economic data (high frequency indicators would be best), and relate that to the evolution of the pandemic and the mobility data. 
 
-```{r mobility-7da, echo=FALSE}
-
-# Pivot the full table to move all destination categories to one column. 
-mobi_full_pivot <- mobi %>% pivot_longer(c("retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"), names_to = "category", values_to = "change_from_baseline")
-
-# Filter the table to pick up only national data; Add a column with 7-day rolling average
-mobi_7da <- filter(mobi_full_pivot, is.na(sub_region_1)) %>%
-  arrange(desc(category)) %>%
-  group_by(category) %>%
-  mutate(change_from_baseline_7da = rollmean(change_from_baseline, 21, fill = NA)) %>%
-  ungroup()
-
-# plot the data; re-using the labels defined in the mobility block. 
-mobi_plot <- ggplot(data = mobi_7da) +
-  geom_area(aes(x = date, y = change_from_baseline_7da, color = category, fill = category), alpha = 0.33) +
-  scale_x_date(name = "Date") +
-  scale_y_continuous(name = "Change from baseline (%)") +
-  theme(legend.position = "none")
-
-mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs))
-
-
-```
-
-## Test positivity rate vs mobility
-The chart below shows the evolution of the test positivity rate and the mobility data related to transit stations. 
-
-```{r posrate-mobility, echo=FALSE}
-
-# Filter the mobility date to keep only the transit stations
-mobi_nation_transit <- filter(mobi_nation_pivot, category == "transit_stations_percent_change_from_baseline")
-
-# Filter the test positivity data for Malaysia only; recalculate the positivity rate
-testdata_my <- filter(covid_data, Code == "MYS" & Date > ymd("2020-08-31") & Date < ymd("2021-01-23"))
-testposrate_my <- testdata_my %>% mutate(DailyPosRate = (DailyCases / (DailyTests * 1000)) * 100)
-
-# Join the mobility table with the test positivity rate table
-# First rename the 'date' column in the mobility data to 'Date' for the join to work
-mobi_nation_transit <- mobi_nation_transit %>% rename(Date = date)
-
-testposrate_mobi_my <- testposrate_my %>% select(-Year, -Continent, -DailyTestsNotes) %>% left_join(mobi_nation_transit, by = "Date")
-
-tpr_mobi_p <- ggplot(data = testposrate_mobi_my) +
-  geom_line(aes(x = Date, y = DailyPosRate), color = "red") + 
-  geom_line(aes(x = Date, y = change_from_baseline), color = "blue")
-
-tpr_mobi_p
-
-
-```
