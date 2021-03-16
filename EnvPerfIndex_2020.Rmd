@@ -1,0 +1,182 @@
+---
+title: "REFSA Environmental Performance Index (EPI) 2020"
+author: "REFSA Research Team"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document: 
+    keep_md: true
+fig.width: 6
+fig.asp: 0.618
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+# Load libraries
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(dplyr)
+library(zoo)
+
+# Load REFSA logo
+# refsa_logo <- png::readPNG("Logo.png")
+
+# Load data
+
+# ===== EPI Scores 2020 =====
+# https://epi.yale.edu/downloads
+scores <- read_csv("epi2020results20200604.csv")
+
+# ===== GDP per capita (World Bank) =====
+# https://data.worldbank.org/indicator/NY.GDP.PCAP.CD
+gdpcap <- read_csv("API_NY.GDP.PCAP.CD_DS2_en_csv_v2_2055804.csv")
+
+# Define ASEAN countries
+# Brunei, Cambodia, Indonesia, Laos, Malaysia, Myanmar, Philippines, Singapore, Thailand, Vietnam
+asean_countries <- c("BRN", "KHM", "IDN", "LAO", "MYS", "MMR", "PHL", "SGP", "THA", "VNM")
+
+```
+
+## Introduction
+
+The Environmental Performance Index is a composite index factoring in many environment-related variables. The index' objective is to show how different countries evolve and whether globally we are moving in the right direction for the environment. 
+
+## Overall EPI score for ASEAN countries
+
+Looking at ASEAN countries as a group, the most recent respective EPI scores for each are shown in the chart below, ranked from highest to lowest. The maximum score is 100, and the orange line shows the average score for ASEAN as a whole (40.9). Malaysia scores slightly better than average. 
+
+```{r EPI-score, echo=FALSE}
+
+# EPI scores for ASEAN
+
+asean_scores <- filter(scores, iso %in% asean_countries)
+
+epi_plot <- ggplot(data = asean_scores, aes(x = reorder(country, -EPI.new), y = EPI.new)) + 
+  geom_bar(stat = "identity") + 
+  geom_hline(yintercept = mean(asean_scores$`EPI.new`), color="orange") +
+  geom_label(aes(x = 10, y = mean(asean_scores$EPI.new), label = mean(asean_scores$`EPI.new`)), color = "orange") +
+  geom_label(aes(label = EPI.new)) +
+  scale_x_discrete(name = "Country") +
+  scale_y_continuous(name = "Score") + 
+  labs(title = "Overall EPI score for ASEAN countries", caption = "Source: EPI Report 2020.") +
+  theme(legend.position = "none")
+
+epi_plot
+
+```
+
+In isolation, these scores do not tell us much. There is also a strong correlation between the EPI score and economic development, which the chart below shows (using GDP per capita as a proxy for economic development). This chart puts in context Singapore's high score, and shows that Malaysia does reasonably well, given its level of development. 
+
+```{r epi-score-gdp, echo=FALSE}
+
+# Filter GDP per capita data to only include ASEAN, and only use 2019
+asean_gdpcap <- filter(gdpcap, gdpcap$`Country Code` %in% asean_countries) %>% select("Country Name", "Country Code", "2019")
+
+# Join with EPI scores
+asean_epigdp <- asean_scores %>% left_join(asean_gdpcap, by = c("iso" = "Country Code"))
+
+# Plot scatterplot
+asean_epigdp_plot <- ggplot(asean_epigdp, aes(x = asean_epigdp$`2019`, y = asean_epigdp$EPI.new)) +
+  geom_point() +
+  geom_hline(yintercept = mean(asean_epigdp$EPI.new), color="orange") +
+  geom_label(aes(x = 70000, y = mean(asean_scores$EPI.new), label = mean(asean_scores$`EPI.new`)), color = "orange") +
+  scale_x_continuous(name = "GDP per capita (current USD)") +
+  scale_y_continuous(name = "EPI score") +
+  ggrepel::geom_label_repel(aes(label = asean_epigdp$iso)) +
+  labs(title = "Overall EPI score is strongly correlated to GDP per capita", caption = "Source: EPI Report 2020, World Bank.")
+
+asean_epigdp_plot
+
+
+```
+
+Another useful metric to look at is the change in the EPI score over the last ten years, again in relation to GDP per capita. This shows more clearly which countries are moving in the right direction, and highlights the bad performance of Singapore. Malaysia is among the countries improving its score the most, although just behind Vietnam. 
+
+```{r epi-score-change, echo=FALSE}
+
+# Filter GDP per capita data to only include ASEAN, and only use 2019
+asean_gdpcap <- filter(gdpcap, gdpcap$`Country Code` %in% asean_countries) %>% select("Country Name", "Country Code", "2019")
+
+# Join with EPI scores
+asean_epigdp <- asean_scores %>% left_join(asean_gdpcap, by = c("iso" = "Country Code"))
+
+# Plot scatterplot
+asean_epigdp_plot <- ggplot(asean_epigdp, aes(x = asean_epigdp$`2019`, y = asean_epigdp$EPI.change)) +
+  geom_point() +
+  geom_hline(yintercept = 0, colour="black") +
+  scale_x_continuous(name = "GDP per capita (current USD)") +
+  scale_y_continuous(name = "10-year change in EPI score") +
+  ggrepel::geom_label_repel(aes(label = asean_epigdp$iso)) +
+  labs(title = "Change in overall EPI score relative to GDP per capita", caption = "Source: EPI Report 2020, World Bank.")
+
+asean_epigdp_plot
+
+```
+
+
+## Growth rate of carbon dioxide emissions
+
+Arguably the most important determinant of the overall EPI score is climate change, within which the biggest weight is given to the evolution of CO~2 emissions. Mitigating climate change has acquired urgency and tracking countries' success in limiting their emissions, in line with the Paris agreement, is crucial to drive policy. The EPI contains a score for CO~2 emissions that is based on the average growth over the last ten years. The scores for ASEAN are shown in the chart below. Malaysia also does better than average here, especially considering the data series end in 2017, and there has been substantial investment in clean energy since then. 
+
+```{r co2, echo=FALSE}
+
+cda_plot <- ggplot(data = asean_scores, aes(x = reorder(iso, -CDA.new), y = CDA.new)) + 
+  geom_bar(stat = "identity") + 
+  geom_hline(yintercept = mean(asean_scores$CDA.new), color="orange") +
+  geom_label(aes(x = 10, y = mean(asean_scores$CDA.new), label = mean(asean_scores$CDA.new)), color = "orange") +
+  geom_label(aes(label = CDA.new)) +
+  scale_x_discrete(name = "Country") +
+  scale_y_continuous(name = "Score") + 
+  labs(title = "CO2 growth rate scores for ASEAN", caption = "Source: EPI Report 2020, World Bank.") +
+  theme(legend.position = "none")
+
+cda_plot
+
+```
+
+Unsurprisingly, the growth (or reduction) of CO2 emissions is also linked to economic development, whereby more developed countries achieved greater success at reducing emissions than less developed countries. 
+
+```{r gdpco2, echo=FALSE}
+
+# Filter GDP per capita data to only include ASEAN, and only use 2019
+asean_gdpcap <- filter(gdpcap, gdpcap$`Country Code` %in% asean_countries) %>% select("Country Name", "Country Code", "2019")
+
+# Join with EPI scores
+asean_epigdp <- asean_scores %>% left_join(asean_gdpcap, by = c("iso" = "Country Code"))
+
+# Plot scatterplot
+asean_epigdp_plot <- ggplot(asean_epigdp, aes(x = asean_epigdp$`2019`, y = asean_epigdp$CDA.new)) +
+  geom_point() +
+  geom_hline(yintercept = mean(asean_epigdp$CDA.new), color="orange") +
+  geom_label(aes(x = 70000, y = mean(asean_scores$CDA.new), label = mean(asean_scores$CDA.new)), color = "orange") +
+  scale_x_continuous(name = "GDP per capita (current USD)") +
+  scale_y_continuous(name = "EPI score") +
+  labs(title = "Growth in CO2 emissions is strongly correlated to GDP per capita", caption = "Source: EPI Report 2020, World Bank.") +
+  ggrepel::geom_label_repel(aes(label = asean_epigdp$iso))
+
+asean_epigdp_plot
+
+```
+
+Again, looking at the change in the last ten years compared to GDP per capita would be more instructive to gauge whether countries are on the right track. Here again, Malaysia performs relatively well compared to other countries, but it is notable that Indonesia and Vietnam improved more. 
+
+```{r gdp-co2-change, echo=FALSE}
+
+asean_epigdp_plot <- ggplot(asean_epigdp, aes(x = asean_epigdp$`2019`, y = asean_epigdp$CDA.change)) +
+  geom_point() +
+  geom_hline(yintercept = 0, colour="black") +
+  scale_x_continuous(name = "GDP per capita (current USD)") +
+  scale_y_continuous(name = "10-year change in EPI score") +
+  ggrepel::geom_label_repel(aes(label = asean_epigdp$iso)) +
+  labs(title = "10-year change in CO2 emissions score relative to GDP per capita", caption = "Source: EPI Report 2020, World Bank.")
+
+asean_epigdp_plot
+
+```
+
+## Conclusion
+
+Based on this brief dive into the EPI data, it seems we are making progress in addressing some of the drivers of climate change, but, as the EPI 2020 report also concludes, too slowly to meet the targets set out in the Paris accord. Malaysia has an opportunity here to double down on renewable energy. As highlighted in the REFSA Brief "[Stimulating the Green Economy](https://refsa.org/stimulating-the-green-economy/)," Malaysia currently only draws 3% of its total electricity production from renewables. Policies are in place to bring that to 10%, on the way to an overall target of 20% by 2025. Now is the time to boost that investment, with the opportunity to build back better on the back of the Covid-19 pandemic. Public investment in renewable energy infrastructure will not only have a favourable effect on emissions, it will also create significant amounts of good jobs and contribute to sustainable economic growth. 
