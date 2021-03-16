@@ -33,7 +33,7 @@ Another useful metric to look at is the change in the EPI score over the last te
 
 ## Growth rate of carbon dioxide emissions
 
-Arguably the most important determinant of the overall EPI score is climate change, within which the biggest weight is given to the evolution of CO~2 emissions. Mitigating climate change has acquired urgency and tracking countries' success in limiting their emissions, in line with the Paris agreement, is crucial to drive policy. The EPI contains a score for CO~2 emissions that is based on the average growth over the last ten years. The scores for ASEAN are shown in the chart below. Malaysia also does better than average here, especially considering the data series end in 2017, and there has been substantial investment in clean energy since then. 
+Arguably the most important determinant of the overall EPI score is climate change, within which the biggest weight is given to the evolution of CO2 emissions. Mitigating climate change has acquired urgency and tracking countries' success in limiting their emissions, in line with the Paris agreement, is crucial to drive policy. The EPI contains a score for CO2 emissions that is based on the average growth over the last ten years. The scores for ASEAN are shown in the chart below. Malaysia also does better than average here, especially considering the data series end in 2017, and there has been substantial investment in clean energy since then. 
 
 ![](EnvPerfIndex_2020_files/figure-html/co2-1.png)<!-- -->
 
