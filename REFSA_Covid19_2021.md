@@ -1,7 +1,7 @@
 ---
 title: "REFSA COVID-19 Response—MCO 2.0"
 author: "REFSA Research Team"
-date: "2021-03-05"
+date: "2021-04-17"
 output: 
   html_document: 
     keep_md: true
@@ -17,6 +17,19 @@ This tracker brings together a number of oft-referred to statistics to monitor t
 
  1. Daily count of tests, cases and test positivity rate
  2. Mobility data, based on Google's Covid-19 location data
+ 
+## Daily new cases
+
+![](REFSA_Covid19_2021_files/figure-html/covid-daily-new-cases-1.png)<!-- -->
+
+## Vaccinations
+
+Our World In Data uses the metric "Share of people who have received at least one dose of Covid-19 vaccine." Adding in "Share of population registered for vaccination." 
+
+![](REFSA_Covid19_2021_files/figure-html/covid-vaccinations-1.png)<!-- -->
+
+
+
  
 ## Tests, cases and positivity rate
 
@@ -56,4 +69,19 @@ The effect of the resumption of interstate travel on 2020-12-07 is well visible 
 ![](REFSA_Covid19_2021_files/figure-html/mobility-transit-1.png)<!-- -->
 
 For further analysis, we could look to include economic data (high frequency indicators would be best), and relate that to the evolution of the pandemic and the mobility data. 
+
+![](REFSA_Covid19_2021_files/figure-html/covid-retail-1.png)<!-- -->
+
+## Passenger movements at MAHB airports
+
+Passenger movements data provide an insight into the health of the tourism sector. Judging by the most recent data, travel levels are still far below the average levels of 2019. 
+
+![](REFSA_Covid19_2021_files/figure-html/mahb_ops-1.png)<!-- -->
+## Retail sales
+
+Another leading indicator for economic performance, retail sales. 
+
+![](REFSA_Covid19_2021_files/figure-html/covid-retail-sales-1.png)<!-- -->
+
+![](REFSA_Covid19_2021_files/figure-html/covid-retail-sa-1.png)<!-- -->
 

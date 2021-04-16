@@ -1,7 +1,7 @@
 ---
 title: "REFSA Environmental Performance Index (EPI) 2020"
 author: "REFSA Research Team"
-date: "2021-03-16"
+date: "2021-03-19"
 output: 
   html_document: 
     keep_md: true
@@ -44,6 +44,11 @@ Unsurprisingly, the growth (or reduction) of CO2 emissions is also linked to eco
 Again, looking at the change in the last ten years compared to GDP per capita would be more instructive to gauge whether countries are on the right track. Here again, Malaysia performs relatively well compared to other countries, but it is notable that Indonesia and Vietnam improved more. 
 
 ![](EnvPerfIndex_2020_files/figure-html/gdp-co2-change-1.png)<!-- -->
+
+In the world context, Malaysia is not doing bad either, also considering ASEAN. 
+
+![](EnvPerfIndex_2020_files/figure-html/explore-gdppc-1.png)<!-- -->
+
 
 ## Conclusion
 

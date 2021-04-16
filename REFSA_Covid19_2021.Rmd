@@ -21,6 +21,7 @@ library(lubridate)
 library(dplyr)
 library(zoo)
 library(hrbrthemes)
+library(RColorBrewer)
 
 # Load REFSA logo
 # refsa_logo <- png::readPNG("Logo.png")
@@ -29,11 +30,18 @@ library(hrbrthemes)
 
 # ===== Google Mobility Reports =====
 # https://www.apple.com/covid19/mobility (alternative source)
-mobi <- read_csv("2020_MY_Region_Mobility_Report.csv")
+# Google provides data in two files (one per year), so merging them together here too. 
+mobi_py <- read_csv("2020_MY_Region_Mobility_Report.csv")
+mobi_cy <- read_csv("2021_MY_Region_Mobility_Report.csv")
+mobi <- full_join(mobi_py, mobi_cy)
 
 # ===== Covid test and cases (Our World in Data) =====
 # https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
-covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases_per_million.csv")
+# All Covid case data
+covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases.csv")
+
+# Covid cases per million population
+covid_cases_pm <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases_per_million.csv")
 
 # ===== Covid test data (Our World in Data) =====
 # https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv
@@ -47,6 +55,76 @@ This tracker brings together a number of oft-referred to statistics to monitor t
  1. Daily count of tests, cases and test positivity rate
  2. Mobility data, based on Google's Covid-19 location data
  
+## Daily new cases
+
+```{r covid-daily-new-cases, echo=FALSE}
+
+# Basic graph of new cases per day for the last x months
+
+# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column. For PM data and all cases
+covid_cases_p <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
+
+# Filter dataset for Malaysia only and for the last 6 months. Filter a bit longer for 7-day rolling average.
+covid_cases_my <- filter(covid_cases_p, country == "Malaysia" & date > ymd("2020-10-15"))
+
+# Add a 7-day average line to the data and filter again for the last 6 months
+covid_cases_my <- covid_cases_my %>% mutate(cases_7ra = rollmean(cases, 7, fill = NA, align = "right")) %>% 
+  filter(date > ymd("2020-10-31"))
+
+# Plot plot plot
+covid_cases_my_plot <- ggplot(data = covid_cases_my, aes(x = date)) +
+  geom_col(aes(y = cases), color = "#FFDE00", fill = "#FFDE00") +
+  geom_line(aes(y = cases_7ra), color = "#1252B3") +
+  scale_x_date(name = "Date", date_breaks = "1 month", date_labels = "%b-%y") +
+  scale_y_continuous(name = "Cases") +
+  labs(title = "Daily new cases are trending up since late March", subtitle = "Daily new cases and 7-day rolling average of new cases", caption = "Source: Our World in Data.")
+
+covid_cases_my_plot
+
+
+```
+
+## Vaccinations
+
+Our World In Data uses the metric "Share of people who have received at least one dose of Covid-19 vaccine." Adding in "Share of population registered for vaccination." 
+
+```{r covid-vaccinations, echo=FALSE}
+
+# Load data (compiled by Faiz)
+my_vaccinations <- read_csv("MY_Vaccination.csv", col_types = cols(
+  Date = col_date(format = "%d-%m-%Y"), 
+  category = col_character(), 
+  Registrations = col_double(),
+  First_dose = col_double(), 
+  Second_dose = col_double(), 
+  Total_doses = col_double()), skip_empty_rows = TRUE)
+
+# Malaysian population
+my_pop <- 32370000
+
+# Pivot the data and remove lines where the date is NA
+my_vaccinations <- my_vaccinations %>% pivot_longer(c("Registrations", "First_dose", "Second_dose", "Total_doses"), names_to = "category", values_to = "pop_count") %>% filter(!is.na(Date))
+
+# Add a column with the percentage of population
+my_vaccinations <- my_vaccinations %>% mutate(percentage = (pop_count / my_pop))
+
+# Plot
+my_vaccinations_p <- ggplot(data = filter(my_vaccinations, category %in% c("Registrations", "First_dose")), aes(x = Date)) +
+  geom_line(aes(y = percentage, colour = category)) + 
+  geom_hline(yintercept = 1, colour = "#999999") +
+  scale_x_date(name = "Date", date_labels = "%d-%b-%y") +
+  scale_y_continuous(name = "% of population", labels = scales::percent) + 
+  scale_colour_brewer(palette = "Set1", labels = c("First dose", "Registrations")) +
+  labs(title = "Vaccination registration is sluggish and vaccine roll-out starting slow", subtitle = "Percentage of population who registered for vaccine and received at least one dose", caption = "Source: Ministry of Health Malaysia") +
+  theme(legend.position = "right", legend.title = element_blank())
+
+my_vaccinations_p
+
+```
+
+
+
+ 
 ## Tests, cases and positivity rate
 
 Source: Our World In Data. 
@@ -55,8 +133,9 @@ Source: Our World In Data.
 
 # ===== Data wrangling =====
 
-# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column
-covid_cases_pivot <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
+# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column. For PM data and all cases
+covid_cases_p <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
+covid_cases_pivot <- covid_cases_pm %>% pivot_longer(!date, names_to = "country", values_to = "cases_pm")
 
 # Filter COVID-19 data for Malaysia and South Korea, from 2020-10-31 to 2021-02-28
 
@@ -65,13 +144,23 @@ iso_codes <- c("MYS", "KOR")
 countries <- c("Malaysia", "South Korea")
 
 date_from <- ymd("2020-09-30")
-date_to <- ymd("2021-03-01")
+date_to <- ymd("2021-04-12")
+
+# Define a tibble with the dates of MCO/CMCO restrictions
+lockdowns <- tribble(
+  ~lockdown, ~start, ~end,
+  #--------|-------|-----
+  "MCO-1", ymd("2020-03-18"), ymd("2020-05-04"),
+  "CMCO-1", ymd("2020-05-04"), ymd("2020-06-09"),
+  "CMCO-2", ymd("2020-10-14"), ymd("2020-12-05"),
+  "MCO-2", ymd("2021-01-11"), ymd("2021-03-05"),
+)
 
 # Filter case data and rename columns for ease of use; add an ISO code column for easy matching
 covid_cases_m <- filter(covid_cases_pivot, country %in% countries & date > date_from & date < date_to)
 covid_cases_m <- rename(covid_cases_m, 
                         record.date = `date`,
-                        daily.cases.per.million = `cases`)
+                        daily.cases.per.million = `cases_pm`)
 covid_cases_m <- covid_cases_m %>% mutate(ISO.code = case_when(
   country == "Malaysia" ~ "MYS",
   country == "South Korea" ~ "KOR",
@@ -184,7 +273,7 @@ mobi_nation <- mobi_nation %>% pivot_longer(c("retail.rec", "grocery.pharmacy", 
 
 This chart shows the change in destinations relative to a pre-pandemic baseline, smoothed using a 7-day rolling average. Each time movement restrictions are announced, there is a noticeable drop in retail and recreation destinations as well as transit stations. 
 
-```{r mobi-plot-all}
+```{r mobi-plot-all, echo=FALSE, fig.asp=0.8}
 
 # Filter the table to pick up only national data; Add a column with 7-day rolling average
 mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
@@ -194,9 +283,11 @@ mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
 
 # plot the data; re-using the labels defined in the mobility block. 
 mobi_plot <- ggplot(data = mobi_nation) +
+  geom_rect(data = filter(lockdowns, start > date_from), inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin = -Inf, ymax = +Inf), fill= 'red', alpha = 0.1) +
   geom_area(aes(x = date, y = change.from.baseline.smooth, color = category, fill = category), alpha = 0.33) +
-  scale_x_date(name = "Date") +
+  scale_x_date(name = "Date", date_label = "%b-%y") +
   scale_y_continuous(name = "Change from baseline (%)") +
+  labs(title = "Routing requests to most destinations remain below baseline", subtitle = "Change in routing requests compared to baseline (Jan-2020 to Feb-2020)", caption = "Shaded areas indicate MCO/CMCO restrictions.\nSource: Google Covid-19 Community Mobility Reports.") +  
   theme(legend.position = "none")
 
 mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs))
@@ -224,4 +315,119 @@ mobi_plot_transit
 ```
 
 For further analysis, we could look to include economic data (high frequency indicators would be best), and relate that to the evolution of the pandemic and the mobility data. 
+
+```{r covid-retail, echo=FALSE}
+
+mobi_plot_transit <- ggplot(data = filter(mobi_nation, category %in% c("grocery.pharmacy", "retail.rec"))) +
+  geom_rect(data = filter(lockdowns, start > date_from), inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin = -Inf, ymax = +Inf), fill= 'red', alpha = 0.1) +
+  geom_area(aes(x = date, y = change.from.baseline.smooth), color = "#1252B3", fill = "#1252B3", alpha = 0.5) +
+  scale_x_date(name = "Date", date_labels = "%b-%y") +
+  scale_y_continuous(name = "Change from baseline (%)") +
+  scale_colour_brewer(palette = "Paired") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(title = "Routing requests to Retail & Recreation destinations remain below baseline", subtitle = "Change in routing requests compared to baseline (Jan-2020 to Feb-2020)", caption = "Shaded areas indicate more stringent restrictions.\nSource: Google Covid-19 Community Mobility Reports.") +
+  theme(legend.position = "none")
+
+mobi_plot_transit + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs))
+
+```
+
+## Passenger movements at MAHB airports
+
+Passenger movements data provide an insight into the health of the tourism sector. Judging by the most recent data, travel levels are still far below the average levels of 2019. 
+
+```{r mahb_ops, echo=FALSE}
+
+# ===== MAHB Operating Statistics =====
+# From MAHB website
+mahb_ops <- read_csv("MAHBOperatingStatistics.csv")
+
+# Define a tibble with the travel restriction dates
+travel_res <- tribble(
+  ~lockdown, ~start, ~end,
+  #--------|-------|-----
+  "MCO-1", ymd("2020-03-18"), ymd("2020-06-10"),
+  "CMCO-1", ymd("2020-10-14"), ymd("2020-12-05"),
+  "MCO-2", ymd("2021-01-11"), ymd("2021-03-31"),
+)
+
+mahb_ops_plot <- ggplot(data = mahb_ops, aes(x = mahb_ops$date)) +
+  geom_rect(data = travel_res, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.1) +
+  geom_col(aes(y = mahb_ops$pax_mvmt_total, colour = airport, fill = airport)) +
+  scale_x_date(name = "Date", date_breaks = "6 month", date_minor_breaks = "1 month", date_labels = "%b-%y") +
+  scale_y_continuous(name = "Passenger movements (thousands)") + 
+  scale_colour_brewer(palette = "Paired") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(title = "MAHB airports total passenger movements are still far below 2019 levels", subtitle = "Total monthly passenger movement (thousands) From September 2019 to February 2021", caption = "Shaded areas indicate interstate travel restrictions in Klang Valley.\nSource: MAHB operating statistics.") +
+  theme(legend.position = "right")
+
+mahb_ops_plot
+
+```
+## Retail sales
+
+Another leading indicator for economic performance, retail sales. 
+
+```{r covid-retail-sales, echo=FALSE}
+
+# Load data - from DOSM then turned into CSV data
+retail_sales <- read_csv("MY_WholesaleRetail.csv")
+
+# Pivot the sales data to longer form
+retail_sales <- retail_sales %>% pivot_longer(c("Total", "Wholesale", "Retail", "Motor"), names_to = "category", values_to = "Sales")
+
+# Filter for 18 months, same as passenger movement
+retail_sales <- filter(retail_sales, Date > ymd("2020-01-31") & category %in% c("Wholesale", "Retail", "Motor"))
+
+retail_sales_plot <- ggplot(data = retail_sales, aes(x = Date)) +
+  geom_rect(data = lockdowns, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.2) +
+  geom_col(aes(y = Sales, colour = category, fill = category)) +
+  scale_x_date(name = "Date", date_breaks = "6 month", date_minor_breaks = "1 month", date_labels = "%b-%y") +
+  scale_y_continuous(name = "Retail sales (RM million)") + 
+  scale_colour_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Retail sales are weakening", subtitle = "Total monthly passenger movement (thousands) From September 2019 to February 2021", caption = "Shaded areas indicate interstate travel restrictions in Klang Valley.\nSource: MAHB operating statistics.") +
+  theme(legend.position = "none")
+
+retail_sales_plot + facet_wrap(~ category)
+
+```
+
+```{r covid-retail-sa, echo=FALSE}
+
+# Load data - from DOSM then turned into CSV data
+retail_sales_sa <- read_csv("MY_WholesaleRetail_SeasAdj.csv")
+
+# Pivot the sales data to longer form
+retail_sales_sa <- retail_sales_sa %>% pivot_longer(c("Total", "Wholesale", "Retail", "Motor"), names_to = "category", values_to = "Sales")
+
+# Filter for 18 months, same as passenger movement
+retail_sales_sa <- filter(retail_sales_sa, Date > ymd("2019-11-30") & category %in% c("Wholesale", "Retail", "Motor"))
+
+# Build ancillary tibble for displaying 'high watermarks' on the facet charts
+hline_max_sales <- tribble(
+  ~category, ~max_sales,
+  #--------|-------
+  "Wholesale", filter(retail_sales_sa, category == "Wholesale") %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales),
+  "Retail", filter(retail_sales_sa, category == "Retail") %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales),
+  "Motor", filter(retail_sales_sa, category == "Motor") %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales)
+)
+
+# Plot
+retail_sales_sa_plot <- ggplot(data = retail_sales_sa, aes(x = Date)) +
+  geom_rect(data = lockdowns, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.1) +
+  geom_line(aes(y = Sales, colour = category)) +
+  geom_hline(yintercept = 100, colour = "#999999") +
+  geom_hline(data = hline_max_sales, aes(yintercept = max_sales, colour = category), linetype = "dashed") +
+  scale_x_date(name = "Date", date_labels = "%b-%y") +
+  scale_y_continuous(name = "Volume Index") + 
+  scale_colour_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Retail sales have not yet recovered to previous levels", subtitle = "Seasonally adjusted volume index of wholesale and retail (2015=100)", caption = "Dashed line represents the 'high watermark' for each sector.\nShaded areas indicate MCO/CMCO restrictions.\nSource: DOSM.") +
+  theme(legend.position = "none")
+
+retail_sales_sa_plot + facet_wrap(~ category)
+
+
+```
 

@@ -20,6 +20,8 @@ library(scales)
 library(lubridate)
 library(dplyr)
 library(zoo)
+library(modelr)
+options(na.action = na.warn)
 
 # Load REFSA logo
 # refsa_logo <- png::readPNG("Logo.png")
@@ -150,8 +152,8 @@ asean_epigdp <- asean_scores %>% left_join(asean_gdpcap, by = c("iso" = "Country
 # Plot scatterplot
 asean_epigdp_plot <- ggplot(asean_epigdp, aes(x = asean_epigdp$`2019`, y = asean_epigdp$CDA.new)) +
   geom_point() +
-  geom_hline(yintercept = mean(asean_epigdp$CDA.new), color="orange") +
-  geom_label(aes(x = 70000, y = mean(asean_scores$CDA.new), label = mean(asean_scores$CDA.new)), color = "orange") +
+  geom_hline(yintercept = median(asean_epigdp$CDA.new), color="orange") +
+  geom_label(aes(x = 70000, y = median(asean_scores$CDA.new), label = median(asean_scores$CDA.new)), color = "orange") +
   scale_x_continuous(name = "GDP per capita (current USD)") +
   scale_y_continuous(name = "EPI score") +
   labs(title = "Growth in CO2 emissions is strongly correlated to GDP per capita", caption = "Source: EPI Report 2020, World Bank.") +
@@ -176,6 +178,48 @@ asean_epigdp_plot <- ggplot(asean_epigdp, aes(x = asean_epigdp$`2019`, y = asean
 asean_epigdp_plot
 
 ```
+
+In the world context, Malaysia is not doing bad either, also considering ASEAN. 
+
+```{r explore-gdppc, echo=FALSE, fig.asp = .8}
+
+# scatterplot with GDPpc link
+
+# EU countries (for colour)
+eu_countries <- c("AUT", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "BEL", "NLD", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE")
+
+# Noteworthy countries (to label)
+note_countries <- c("Malaysia", "Singapore", "UK", "US", "China")
+names(note_countries) <- c("MYS", "SGP", "GBR", "USA", "CHN")
+
+# Filter GDP per capita data to only include ASEAN, and only use 2019
+new_gdpcap <- gdpcap %>% select("Country Name", "Country Code", "2019")
+
+# Join with EPI scores
+scores_gdp <- scores %>% left_join(new_gdpcap, by = c("iso" = "Country Code"))
+
+# Add a column for region to the dataset
+scores_gdp <- scores_gdp %>% mutate(region = if_else(scores_gdp$iso %in% asean_countries, "ASEAN", "RoW"))
+scores_gdp <- scores_gdp %>% mutate(region = if_else(scores_gdp$iso %in% eu_countries & region == "RoW", "EU", region))
+
+# Add a column for noteworthy country to the dataset
+note_country_scores <- filter(scores_gdp, scores_gdp$iso %in% c("MYS", "SGP", "GBR", "USA", "CHN"))
+
+# scatterplot
+  epigdp_plot <- ggplot() +
+    geom_point(data = scores_gdp, aes(x = scores_gdp$`2019`, y = scores_gdp$CDA.new, colour = scores_gdp$region)) +
+    geom_point(data = note_country_scores, aes(x = note_country_scores$`2019`, y = note_country_scores$CDA.new, size = 3, colour = note_country_scores$region), shape = 1) +
+    ggrepel::geom_label_repel(data = note_country_scores, aes(x = note_country_scores$`2019`, y = note_country_scores$CDA.new, label = note_country_scores$country), size = 3, box.padding = 0.1) +
+    labs(colour = "Region") +
+    labs(size = element_blank()) +
+    scale_x_log10(name = element_blank(), limits = c(100, 120000), labels = comma) +
+    scale_y_continuous(name = element_blank(), limits = c(0, 100)) +
+    theme(legend.position = "bottom")
+  
+  epigdp_plot
+
+```
+
 
 ## Conclusion
 
