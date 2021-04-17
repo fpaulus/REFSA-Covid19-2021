@@ -100,7 +100,7 @@ my_vaccinations <- read_csv("MY_Vaccination.csv", col_types = cols(
   Total_doses = col_double()), skip_empty_rows = TRUE)
 
 # Malaysian population
-my_pop <- 32370000
+my_pop <- 24270000
 
 # Pivot the data and remove lines where the date is NA
 my_vaccinations <- my_vaccinations %>% pivot_longer(c("Registrations", "First_dose", "Second_dose", "Total_doses"), names_to = "category", values_to = "pop_count") %>% filter(!is.na(Date))
@@ -109,12 +109,12 @@ my_vaccinations <- my_vaccinations %>% pivot_longer(c("Registrations", "First_do
 my_vaccinations <- my_vaccinations %>% mutate(percentage = (pop_count / my_pop))
 
 # Plot
-my_vaccinations_p <- ggplot(data = filter(my_vaccinations, category %in% c("Registrations", "First_dose")), aes(x = Date)) +
+my_vaccinations_p <- ggplot(data = filter(my_vaccinations, category %in% c("Registrations", "First_dose", "Second_dose")), aes(x = Date)) +
   geom_line(aes(y = percentage, colour = category)) + 
   geom_hline(yintercept = 1, colour = "#999999") +
   scale_x_date(name = "Date", date_labels = "%d-%b-%y") +
   scale_y_continuous(name = "% of population", labels = scales::percent) + 
-  scale_colour_brewer(palette = "Set1", labels = c("First dose", "Registrations")) +
+  scale_colour_brewer(palette = "Set1", labels = c("Registrations", "First dose", "Second dose")) +
   labs(title = "Vaccination registration is sluggish and vaccine roll-out starting slow", subtitle = "Percentage of population who registered for vaccine and received at least one dose", caption = "Source: Ministry of Health Malaysia") +
   theme(legend.position = "right", legend.title = element_blank())
 
@@ -351,6 +351,8 @@ travel_res <- tribble(
   "MCO-2", ymd("2021-01-11"), ymd("2021-03-31"),
 )
 
+# Plot - showing KLIA and MASB passengers as categories, summing up to the total for the entire system in Malaysia.
+# Also using a different palette that works better for the colours. 
 mahb_ops_plot <- ggplot(data = mahb_ops, aes(x = mahb_ops$date)) +
   geom_rect(data = travel_res, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.1) +
   geom_col(aes(y = mahb_ops$pax_mvmt_total, colour = airport, fill = airport)) +
@@ -379,6 +381,7 @@ retail_sales <- retail_sales %>% pivot_longer(c("Total", "Wholesale", "Retail", 
 # Filter for 18 months, same as passenger movement
 retail_sales <- filter(retail_sales, Date > ymd("2020-01-31") & category %in% c("Wholesale", "Retail", "Motor"))
 
+# Plot - this plot doesn't really show a lot of interesting data and doesn't look nice either, so replace by the one below. 
 retail_sales_plot <- ggplot(data = retail_sales, aes(x = Date)) +
   geom_rect(data = lockdowns, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.2) +
   geom_col(aes(y = Sales, colour = category, fill = category)) +
@@ -405,6 +408,10 @@ retail_sales_sa <- retail_sales_sa %>% pivot_longer(c("Total", "Wholesale", "Ret
 retail_sales_sa <- filter(retail_sales_sa, Date > ymd("2019-11-30") & category %in% c("Wholesale", "Retail", "Motor"))
 
 # Build ancillary tibble for displaying 'high watermarks' on the facet charts
+# Basically, we're looking for the max value in each category in the dataset we have, then extract it as the y value for the hline 
+# corresponding to that section. The steps are basically to filter out each category, arrange from highest to lowest,
+# extract the first record (highest value), then pull out the value
+# (not using pull() would lead to a tibble within a tibble, which ggplot() can't deal with.)
 hline_max_sales <- tribble(
   ~category, ~max_sales,
   #--------|-------
