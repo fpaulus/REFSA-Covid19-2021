@@ -35,11 +35,6 @@ mobi_py <- read_csv("2020_MY_Region_Mobility_Report.csv")
 mobi_cy <- read_csv("2021_MY_Region_Mobility_Report.csv")
 mobi <- full_join(mobi_py, mobi_cy)
 
-# ===== Covid test and cases (Our World in Data) =====
-# https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
-# All Covid case data
-covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases.csv")
-
 # Covid cases per million population
 covid_cases_pm <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases_per_million.csv")
 
@@ -60,6 +55,11 @@ This tracker brings together a number of oft-referred to statistics to monitor t
 ```{r covid-daily-new-cases, echo=FALSE}
 
 # Basic graph of new cases per day for the last x months
+
+# ===== Covid test and cases (Our World in Data) =====
+# https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
+# All Covid case data
+covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases.csv")
 
 # Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column. For PM data and all cases
 covid_cases_p <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
