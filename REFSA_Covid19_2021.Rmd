@@ -250,6 +250,13 @@ The charts below show the percent change compared to a baseline. The baseline is
 
 ```{r mobility, echo=FALSE}
 
+# ===== Google Mobility Reports =====
+# https://www.apple.com/covid19/mobility (alternative source)
+# Google provides data in two files (one per year), so merging them together here too. 
+mobi_py <- read_csv("2020_MY_Region_Mobility_Report.csv")
+mobi_cy <- read_csv("2021_MY_Region_Mobility_Report.csv")
+mobi <- full_join(mobi_py, mobi_cy)
+
 # Filter the raw data to only include nationwide change and correct date range
 mobi_nation <- filter(mobi, is.na(sub_region_1) & date > date_from & date < date_to)
 mobi_nation <- rename(mobi_nation, 
@@ -273,7 +280,7 @@ mobi_nation <- mobi_nation %>% pivot_longer(c("retail.rec", "grocery.pharmacy", 
 
 This chart shows the change in destinations relative to a pre-pandemic baseline, smoothed using a 7-day rolling average. Each time movement restrictions are announced, there is a noticeable drop in retail and recreation destinations as well as transit stations. 
 
-```{r mobi-plot-all, echo=FALSE, fig.asp=0.8}
+```{r mobi-plot-all, echo=FALSE}
 
 # Filter the table to pick up only national data; Add a column with 7-day rolling average
 mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
@@ -288,9 +295,11 @@ mobi_plot <- ggplot(data = mobi_nation) +
   scale_x_date(name = "Date", date_label = "%b-%y") +
   scale_y_continuous(name = "Change from baseline (%)") +
   labs(title = "Routing requests to most destinations remain below baseline", subtitle = "Change in routing requests compared to baseline (Jan-2020 to Feb-2020)", caption = "Shaded areas indicate MCO/CMCO restrictions.\nSource: Google Covid-19 Community Mobility Reports.") +  
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  facet_wrap(~ category, labeller = labeller(category = dest_cats.labs)) +
+  theme(panel.spacing.x = unit(4, "mm"))
 
-mobi_plot + facet_wrap(~ category, labeller = labeller(category = dest_cats.labs))
+mobi_plot 
 
 ```
 
