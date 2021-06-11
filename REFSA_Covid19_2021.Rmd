@@ -114,7 +114,7 @@ my_vaccinations_p <- ggplot(data = filter(my_vaccinations, category %in% c("Regi
   geom_hline(yintercept = 1, colour = "#999999") +
   scale_x_date(name = "Date", date_labels = "%d-%b-%y") +
   scale_y_continuous(name = "% of population", labels = scales::percent) + 
-  scale_colour_brewer(palette = "Set1", labels = c("Registrations", "First dose", "Second dose")) +
+  scale_colour_brewer(palette = "Set1", labels = c("First dose", "Registrations", "Second dose")) +
   labs(title = "Vaccination registration is sluggish and vaccine roll-out starting slow", subtitle = "Percentage of population who registered for vaccine and received at least one dose", caption = "Source: Ministry of Health Malaysia") +
   theme(legend.position = "right", legend.title = element_blank())
 
@@ -144,7 +144,7 @@ iso_codes <- c("MYS", "KOR")
 countries <- c("Malaysia", "South Korea")
 
 date_from <- ymd("2020-09-30")
-date_to <- ymd("2021-04-12")
+date_to <- ymd("2021-05-07")
 
 # Define a tibble with the dates of MCO/CMCO restrictions
 lockdowns <- tribble(
@@ -202,7 +202,7 @@ covid_dailytests_plot <- ggplot(data = covid_all, aes(x = record.date)) +
   geom_bar(aes(y = daily.tests.per.thousand, colour = ISO.code), stat = "identity") + 
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Count") + 
-  labs(title = "Daily tests per thousand for South Korea and Malaysia", caption = "From 01-Oct-2020 to 28-Feb-2021. Source: Our World In Data.") +
+  labs(title = "Daily tests per thousand for South Korea and Malaysia", caption = "From 01-Oct-2020 to 07-May-2021. Source: Our World In Data.") +
   theme(legend.position = "none")
 
 covid_dailytests_plot + facet_wrap( ~ ISO.code)
@@ -218,7 +218,7 @@ covid_dailycases_plot <- ggplot(data = covid_all, aes(x = record.date)) +
   geom_bar(aes(y = daily.cases.per.million, colour = ISO.code), stat = "identity") + 
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Count") + 
-  labs(title = "Daily cases per million for South Korea and Malaysia", caption = "From 01-Oct-2020 to 28-Feb-2021. Source: Our World In Data.") +
+  labs(title = "Daily cases per million for South Korea and Malaysia", caption = "From 01-Oct-2020 to 07-May-2021. Source: Our World In Data.") +
   theme(legend.position = "none")
 
 covid_dailycases_plot + facet_wrap( ~ ISO.code)
@@ -236,7 +236,7 @@ covid_posrate_plot <- ggplot(data = covid_all) +
   geom_line(aes(x = record.date, y = st.pos.rate, color = ISO.code)) +
   scale_x_date(name = "Date") +
   scale_y_continuous(labels = scales::percent, name = "Percent") + 
-  labs(title = "Short-term test positivity rate for South Korea and Malaysia", caption = "From 01-Oct-2020 to 28-Feb-2021. Source: Our World In Data.") + 
+  labs(title = "Short-term test positivity rate for South Korea and Malaysia", caption = "From 01-Oct-2020 to 07-May-2021. Source: Our World In Data.") + 
   theme(legend.position = "none")
 
 covid_posrate_plot + facet_wrap(~ ISO.code)

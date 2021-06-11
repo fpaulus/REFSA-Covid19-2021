@@ -1,0 +1,511 @@
+---
+title: "PH Majlis Presiden MCO30 Statement"
+author: "Frederik Paulus"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document: 
+    keep_md: true
+fig.width: 6
+fig.asp: 0.618
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+# Load libraries
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(dplyr)
+library(zoo)
+library(hrbrthemes)
+library(RColorBrewer)
+library(modelr)
+
+# Load REFSA logo
+# refsa_logo <- png::readPNG("Logo.png")
+
+# Load data
+
+# ===== Google Mobility Reports =====
+# https://www.apple.com/covid19/mobility (alternative source)
+# Google provides data in two files (one per year), so merging them together here too. 
+mobi_py <- read_csv("2020_MY_Region_Mobility_Report.csv")
+mobi_cy <- read_csv("2021_MY_Region_Mobility_Report.csv")
+mobi <- full_join(mobi_py, mobi_cy)
+
+# Covid cases per million population
+covid_cases_pm <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases_per_million.csv")
+
+# ===== Covid test data (Our World in Data) =====
+# https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv
+covid_tests <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/testing/covid-testing-all-observations.csv")
+
+```
+
+## Daily Cases and Testing
+
+Faced with the recent increase in the number of cases, the question is whether testing is sufficient. 
+
+### Daily new cases
+
+```{r covid-daily-new-cases, echo=FALSE}
+
+# Basic graph of new cases per day for the last x months
+
+# ===== Covid test and cases (Our World in Data) =====
+# https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
+# All Covid case data
+covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases.csv")
+
+# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column. For PM data and all cases
+covid_cases_p <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
+
+# Filter dataset for Malaysia only and for the last 6 months. Filter a bit longer for 7-day rolling average.
+covid_cases_my <- filter(covid_cases_p, country == "Malaysia" & date > ymd("2020-10-15"))
+
+# Add a 7-day average line to the data and filter again for the last 6 months
+covid_cases_my <- covid_cases_my %>% mutate(cases_7ra = rollmean(cases, 7, fill = NA, align = "right")) %>% 
+  filter(date > ymd("2020-10-31"))
+
+# Plot plot plot
+covid_cases_my_plot <- ggplot(data = covid_cases_my, aes(x = date)) +
+  geom_col(aes(y = cases), color = "#FFDE00", fill = "#FFDE00") +
+  geom_line(aes(y = cases_7ra), color = "#1252B3") +
+  scale_x_date(name = "Date", date_breaks = "1 month", date_labels = "%b-%y") +
+  scale_y_continuous(name = "Cases") +
+  labs(title = "Daily new cases are trending up since late March", subtitle = "Daily new cases and 7-day rolling average of new cases", caption = "Source: Our World in Data.")
+
+covid_cases_my_plot
+
+
+```
+
+### Daily tests and test positivity rate
+
+```{r covid-19-linear, echo=FALSE}
+
+# ===== Data wrangling =====
+
+# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column. For PM data and all cases
+covid_cases_p <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
+covid_cases_pivot <- covid_cases_pm %>% pivot_longer(!date, names_to = "country", values_to = "cases_pm")
+
+# Filter COVID-19 data for Malaysia and South Korea, from 2020-10-31 to 2021-02-28
+
+# Define filter values
+iso_codes <- c("MYS")
+countries <- c("Malaysia")
+
+date_from <- ymd("2021-01-01")
+date_to <- ymd("2021-05-23")
+
+# Define a tibble with the dates of MCO/CMCO restrictions
+lockdowns <- tribble(
+  ~lockdown, ~start, ~end,
+  #--------|-------|-----
+  "MCO-1", ymd("2020-03-18"), ymd("2020-05-04"),
+  "CMCO-1", ymd("2020-05-04"), ymd("2020-06-09"),
+  "CMCO-2", ymd("2020-10-14"), ymd("2020-12-05"),
+  "MCO-2", ymd("2021-01-11"), ymd("2021-03-05"),
+  "MCO-3", ymd("2021-05-25"), ymd("2021-06-16"),
+)
+
+# Filter case data and rename columns for ease of use; add an ISO code column for easy matching
+covid_cases_m <- filter(covid_cases_pivot, country %in% countries & date > date_from & date < date_to)
+covid_cases_m <- rename(covid_cases_m, 
+                        record.date = `date`,
+                        daily.cases.per.million = `cases_pm`)
+covid_cases_m <- covid_cases_m %>% mutate(ISO.code = case_when(
+  country == "Malaysia" ~ "MYS",
+  TRUE ~ country
+))
+
+# Filter tests data according to parameters and only useful columns; rename columns for ease of use
+covid_tests_m <- filter(covid_tests, covid_tests$`ISO code` %in% iso_codes & covid_tests$Date > date_from & covid_tests$Date < date_to) %>% select(c("ISO code", "Date", "Daily change in cumulative total", "Daily change in cumulative total per thousand", "7-day smoothed daily change", "7-day smoothed daily change per thousand", "Short-term positive rate", "Short-term tests per case")) 
+covid_tests_m <- rename(covid_tests_m, 
+      ISO.code = `ISO code`, 
+      record.date = `Date`,
+      daily.tests = `Daily change in cumulative total`, 
+      daily.tests.per.thousand = `Daily change in cumulative total per thousand`, 
+      smoothed.daily.change = `7-day smoothed daily change`, 
+      smoothed.daily.change.per.thousand = `7-day smoothed daily change per thousand`, 
+      st.pos.rate = `Short-term positive rate`, 
+      st.tests.per.case = `Short-term tests per case`)
+
+# Filter NA's and sort rows in ascending order (by Date)
+covid_cases_m <- arrange(covid_cases_m, record.date)
+covid_tests_m <- arrange(covid_tests_m, record.date)
+
+# Merge cases and tests data
+covid_all <- covid_tests_m %>% left_join(covid_cases_m, by = c("ISO.code", "record.date"))
+
+
+```
+
+### Evolution of testing 
+
+```{r covid-daily-tests}
+
+# New facet labels for countries
+country.labs <- c("Malaysia")
+names(country.labs) <- c("MYS")
+
+# Plot daily tests (per thousand)
+covid_dailytests_plot <- ggplot(data = covid_all, aes(x = record.date)) + 
+  geom_bar(aes(y = daily.tests.per.thousand), stat = "identity") + 
+  scale_x_date(name = "Date") +
+  scale_y_continuous(name = "Count") + 
+  labs(title = "Daily tests per thousand for South Korea and Malaysia", caption = "From 01-Oct-2020 to 07-May-2021. Source: Our World In Data.") +
+  theme(legend.position = "none")
+
+covid_dailytests_plot
+
+```
+
+### Test positivity rate
+
+```{r covid-posrate}
+
+# Plot test positivity rate
+covid_posrate_plot <- ggplot(data = covid_all) + 
+  geom_line(aes(x = record.date, y = st.pos.rate, color = ISO.code)) +
+  scale_x_date(name = "Date") +
+  scale_y_continuous(labels = scales::percent, name = "Percent") + 
+  labs(title = "Short-term test positivity rate", caption = "From 01-Oct-2020 to 07-May-2021. Source: Our World In Data.") + 
+  theme(legend.position = "none")
+
+covid_posrate_plot + facet_wrap(~ ISO.code)
+
+```
+
+## Impact on the Economy
+
+One way to gauge the impact on the economy is to use Google Mobility data to estimate the change in footfall in various locations where economic activity happens. 
+
+```{r mobility, echo=FALSE}
+
+# ===== Google Mobility Reports =====
+# https://www.apple.com/covid19/mobility (alternative source)
+# Google provides data in two files (one per year), so merging them together here too. 
+mobi_py <- read_csv("2020_MY_Region_Mobility_Report.csv")
+mobi_cy <- read_csv("2021_MY_Region_Mobility_Report.csv")
+mobi <- full_join(mobi_py, mobi_cy)
+
+# Filter the raw data to only include nationwide change and correct date range
+mobi_nation <- filter(mobi, is.na(sub_region_1) & date > date_from & date < date_to)
+mobi_nation <- rename(mobi_nation, 
+                      retail.rec = "retail_and_recreation_percent_change_from_baseline", 
+                      grocery.pharmacy = "grocery_and_pharmacy_percent_change_from_baseline", 
+                      parks = "parks_percent_change_from_baseline", 
+                      transit = "transit_stations_percent_change_from_baseline", 
+                      workplaces = "workplaces_percent_change_from_baseline", 
+                      residential = "residential_percent_change_from_baseline")
+
+# New facet labels for place categories
+dest_cats.labs <- c("Retail & Rec", "Grocery & Pharmacy", "Parks", "Transit Stations", "Workplaces", "Residential")
+names(dest_cats.labs) <- c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential")
+
+# The data is shown in tabular format, not very useful for analysis, so need to pivot the different categories into one column
+mobi_nation <- mobi_nation %>% pivot_longer(c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential"), names_to = "category", values_to = "change.from.baseline")
+
+```
+
+### Mobility - Change from Baseline Across Categories
+
+This chart shows the change in destinations relative to a pre-pandemic baseline, smoothed using a 7-day rolling average. Each time movement restrictions are announced, there is a noticeable drop in retail and recreation destinations as well as transit stations. 
+
+```{r mobi-plot-all, echo=FALSE}
+
+# Filter the table to pick up only national data; Add a column with 7-day rolling average
+mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
+  group_by(category) %>%
+  mutate(change.from.baseline.smooth = rollmean(change.from.baseline, 7, fill = NA)) %>%
+  ungroup()
+
+# plot the data; re-using the labels defined in the mobility block. 
+mobi_plot <- ggplot(data = mobi_nation) +
+  geom_rect(data = filter(lockdowns, start > date_from), inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin = -Inf, ymax = +Inf), fill= 'red', alpha = 0.1) +
+  geom_area(aes(x = date, y = change.from.baseline.smooth, color = category, fill = category), alpha = 0.33) +
+  scale_x_date(name = "Date", date_label = "%b-%y") +
+  scale_y_continuous(name = "Change from baseline (%)") +
+  labs(title = "Routing requests to most destinations remain below baseline", subtitle = "Change in routing requests compared to baseline (Jan-2020 to Feb-2020)", caption = "Shaded areas indicate MCO/CMCO restrictions.\nSource: Google Covid-19 Community Mobility Reports.") +  
+  theme(legend.position = "none") +
+  facet_wrap(~ category, labeller = labeller(category = dest_cats.labs)) +
+  theme(panel.spacing.x = unit(4, "mm"))
+
+mobi_plot 
+
+```
+
+### Do changes in mobility explain changes in GDP? 
+
+Here we run a linear regression between the mobility data and the GDP, to look for a relation between the two. GDP per quarter is the dependent variable, while the change in mobility index from baseline per quarter is the independent variable. 
+
+GDP data is only available quarterly, which limits the amount of data points. 
+
+```{r regression}
+
+# ===== Mobility data =====
+# Bin all mobility observations in quarters, by date
+mobi_nation_q <- mobi %>% filter(is.na(sub_region_1)) %>%
+  mutate(quarter = case_when(
+  (date >= ymd("2020-01-01") & date < ymd("2020-04-01")) ~ "1Q2020",
+  (date >= ymd("2020-04-01") & date < ymd("2020-07-01")) ~ "2Q2020",
+  (date >= ymd("2020-07-01") & date < ymd("2020-10-01")) ~ "3Q2020",
+  (date >= ymd("2020-10-01") & date < ymd("2021-01-01")) ~ "4Q2020",
+  (date >= ymd("2021-01-01") & date < ymd("2021-04-01")) ~ "1Q2021",  
+  (date >= ymd("2021-04-01") & date < ymd("2021-07-01")) ~ "2Q2021"))  
+
+# Rename the columns for easier work
+mobi_nation_q <- rename(mobi_nation_q, 
+                      retail.rec = "retail_and_recreation_percent_change_from_baseline", 
+                      grocery.pharmacy = "grocery_and_pharmacy_percent_change_from_baseline", 
+                      parks = "parks_percent_change_from_baseline", 
+                      transit = "transit_stations_percent_change_from_baseline", 
+                      workplaces = "workplaces_percent_change_from_baseline", 
+                      residential = "residential_percent_change_from_baseline")
+
+# The data is shown in tabular format, not very useful for analysis, so need to pivot the different categories into one column
+mobi_nation_q <- mobi_nation_q %>% pivot_longer(c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential"), names_to = "category", values_to = "change.from.baseline")
+
+# Calculate an average value for economically relevant variables - exclude parks and residential
+# Need to average across four categories and keep the other variables. Average over quarters.
+mobi_nation_q <- mobi_nation_q %>% 
+  filter(category %in% c("retail.rec", "grocery.pharmacy", "transit", "workplaces")) %>%
+  group_by(country_region_code, country_region, quarter) %>%
+  summarise(avg_delta = mean(change.from.baseline, na.rm = TRUE))
+
+# ===== GDP Data =====
+# Define a tibble with GDP data 
+gdp_data <- tribble(
+  ~quarter, ~gdp,
+  #--|--
+  "1Q2020", 344.7,
+  "2Q2020", 289.7,
+  "3Q2020", 351.6,
+  "4Q2020", 357.9,
+  "1Q2021", 343.1
+)
+
+# Join quarterly mobility data and quarterly GDP data
+mobgdp_data <- left_join(mobi_nation_q, gdp_data, by = c("quarter" = "quarter"))
+
+# Run a linear regression on GDP with the change in mobility
+gdp_reg <- lm(gdp ~ avg_delta, data = mobgdp_data)
+
+# Plot the actual data points and the model prediction
+# First create a grid with data_grid() that contains all the unique variables. See here: https://r4ds.had.co.nz/model-basics.html#predictions
+
+grid <- mobgdp_data %>% data_grid(avg_delta)
+
+# then add the predictions
+grid <- grid %>% add_predictions(gdp_reg)
+
+# Last, plot everything
+gdp_pred_plot <- ggplot(data = mobgdp_data, aes(x = avg_delta)) +
+  geom_point(aes(y = gdp)) +
+  geom_line(aes(y = pred), data = grid, colour = "red", size = 1)
+  
+gdp_pred_plot
+
+
+```
+
+## Comparing MCO 1 and MCO 3
+
+On June 1st, the government announced a new MCO, purportedly as strict as the original MCO (MCO 1) in March 2020. It's worth comparing the state of the pandemic and the mobility in both cases, as well as reiterating the economic cost of the first, and the related support packages. 
+
+```{r MCO-cases, echo=FALSE}
+
+# Basic graph of new cases per day for the last x months
+
+# Define a tibble with the dates of MCO/CMCO restrictions
+lockdowns <- tribble(
+  ~lockdown, ~start, ~end,
+  #--------|-------|-----
+  "MCO-1", ymd("2020-03-18"), ymd("2020-05-04"),
+  "CMCO-1", ymd("2020-05-04"), ymd("2020-06-09"),
+  "CMCO-2", ymd("2020-10-14"), ymd("2020-12-05"),
+  "MCO-2", ymd("2021-01-11"), ymd("2021-03-05"),
+  "MCO-3", ymd("2021-05-25"), ymd("2021-06-16"),
+)
+
+# ===== Covid test and cases (Our World in Data) =====
+# https://github.com/owid/covid-19-data/blob/master/public/data/jhu/new_cases_per_million.csv (Cases are per million population!)
+# All Covid case data
+daily_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/jhu/new_cases.csv")
+
+# Convert case data to a denormalised tibble. Pivot all columns except "Date" into a "country" column and a "cases" column. For PM data and all cases
+daily_cases_p <- daily_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
+
+# Filter out Malaysia figures only
+daily_cases_my <- filter(daily_cases_p, country == "Malaysia")
+
+# Add a 7-day average line to the data and filter again for the last 6 months
+daily_cases_my <- daily_cases_my %>% mutate(cases_7ra = rollmean(cases, 7, fill = NA, align = "right"))
+
+# Create a vector of additional dates to model the end of the MCO.Take the planned end date + add 14 days
+mco3_end <- ymd("2021-06-16")
+# figure out the max date in the period and fill in the gaps
+mco3_gap <- interval(max(daily_cases_my$date), mco3_end)
+mco3_gap_days <- mco3_gap/ddays(1) + 14
+post_mco3_period <- max(daily_cases_my$date) + days(1:mco3_gap_days)
+# Add it to the tibble of cases
+daily_cases_my <- daily_cases_my %>% add_row(date = post_mco3_period)
+
+# Add a column to the dataset to indicate whether it is MCO 1 or MCO 3
+# Bin all daily case observations in MCO1 or MCO3, by date
+daily_cases_my <- daily_cases_my %>% mutate(mco = case_when(
+  (date >= ymd("2020-03-03") & date < ymd("2020-05-18")) ~ "MCO1", 
+  (date >= ymd("2021-05-11") & date < ymd("2021-06-30")) ~ "MCO3")) 
+
+# Plot plot plot
+daily_cases_my_plot <- ggplot(data = filter(daily_cases_my, mco != "NA"), aes(x = date)) +
+  geom_col(aes(y = cases), color = "#FFDE00", fill = "#FFDE00") +
+  geom_line(aes(y = cases_7ra), color = "#1252B3") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(start)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(end)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(start)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(end)), color = "#999999") +
+  scale_x_date(name = "Date", date_breaks = "7 days", date_labels = "%d-%b-%y") +
+  scale_y_continuous(name = "Cases") +
+  labs(title = "MCO 3 shows a plateau of new cases, but at a much higher base", subtitle = "Count and 7-day rolling average of daily new cases", caption = "MCO periods indicated by vertical lines.\nSource: Our World in Data.")
+
+daily_cases_my_plot + 
+  facet_wrap(~ mco, scales = "free_x") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+
+
+```
+
+
+
+```{r MCO-daily-tests}
+
+# New facet labels for countries
+country.labs <- c("Malaysia")
+names(country.labs) <- c("MYS")
+
+# Filter tests data according to parameters and only useful columns; rename columns for ease of use
+covid_mco_tests_m <- filter(covid_tests, covid_tests$`ISO code` %in% iso_codes) %>% select(c("ISO code", "Date", "Daily change in cumulative total", "Daily change in cumulative total per thousand", "7-day smoothed daily change", "7-day smoothed daily change per thousand", "Short-term positive rate", "Short-term tests per case")) 
+covid_mco_tests_m <- rename(covid_mco_tests_m, 
+      ISO.code = `ISO code`, 
+      record.date = `Date`,
+      daily.tests = `Daily change in cumulative total`, 
+      daily.tests.per.thousand = `Daily change in cumulative total per thousand`, 
+      smoothed.daily.change = `7-day smoothed daily change`, 
+      smoothed.daily.change.per.thousand = `7-day smoothed daily change per thousand`, 
+      st.pos.rate = `Short-term positive rate`, 
+      st.tests.per.case = `Short-term tests per case`)
+
+# Create a vector of additional dates to model the end of the MCO.Take the planned end date + add 14 days
+mco3_end <- ymd("2021-06-16")
+# figure out the max date in the period and fill in the gaps
+mco3_gap <- interval(max(covid_mco_tests_m$record.date), mco3_end)
+mco3_gap_days <- mco3_gap/ddays(1) + 14
+post_mco3_period <- max(covid_mco_tests_m$record.date) + days(1:mco3_gap_days)
+# Add it to the tibble of cases
+covid_mco_tests_m <- covid_mco_tests_m %>% add_row(record.date = post_mco3_period)
+
+# Add a column to the dataset to indicate whether it is MCO 1 or MCO 3
+# Bin all daily case observations in MCO1 or MCO3, by date
+covid_mco_tests_m <- covid_mco_tests_m %>% mutate(mco = case_when(
+  (record.date >= ymd("2020-03-03") & record.date < ymd("2020-05-18")) ~ "MCO1", 
+  (record.date >= ymd("2021-05-11") & record.date < ymd("2021-06-30")) ~ "MCO3")) 
+
+# Plot daily tests (per thousand)
+covid_mco_dailytests_plot <- ggplot(data = filter(covid_mco_tests_m, mco != "NA"), aes(x = record.date)) + 
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(start))) +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(end))) +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(start))) +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(end))) +
+  geom_bar(aes(y = daily.tests.per.thousand), stat = "identity") + 
+  scale_x_date(name = "Date", date_breaks = "7 days", date_labels = "%d-%b-%y") +
+  scale_y_continuous(name = "Count") + 
+  labs(title = "In proportion to the size of the outbreak, there is less testing in MCO 3 than MCO 1", subtitle = "Daily tests per thousand during MCO 1 and MCO 3", caption = "MCO periods indicated by vertical lines.\nSource: Our World In Data.") +
+  theme(legend.position = "none") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+
+covid_mco_dailytests_plot + facet_wrap(~ mco, scales = "free_x")
+
+```
+
+
+```{r}
+
+# Plot daily tests (per thousand)
+covid_mco_tpr_plot <- ggplot(data = filter(covid_mco_tests_m, mco != "NA"), aes(x = record.date)) + 
+  geom_line(aes(y = st.pos.rate), color = "#1252B3") + 
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(start)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(end)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(start)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(end)), color = "#999999") +
+  scale_x_date(name = "Date", date_breaks = "7 days", date_labels = "%d-%b-%y") +
+  scale_y_continuous(name = "Test positivity rate", labels = label_percent()) + 
+  labs(title = "Test positivity rate quickly dropped in MCO 1 but not in MCO 3", subtitle = "Daily tests per thousand during MCO 1 and MCO 3", caption = "MCO periods indicated by vertical lines.\nSource: Our World In Data.") +
+  theme(legend.position = "none") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+
+covid_mco_tpr_plot + facet_wrap(~ mco, scales = "free_x")
+
+
+```
+
+## Mobility during MCO 1 and MCO 3
+
+Looking at Google changes in baseline. 
+
+```{r mco-mobility, fig.asp = 1.236}
+
+# Filter the raw data to only include nationwide change and correct date range
+mobi_mco <- filter(mobi, is.na(sub_region_1))
+mobi_mco <- rename(mobi_mco, 
+                      retail.rec = "retail_and_recreation_percent_change_from_baseline", 
+                      grocery.pharmacy = "grocery_and_pharmacy_percent_change_from_baseline", 
+                      parks = "parks_percent_change_from_baseline", 
+                      transit = "transit_stations_percent_change_from_baseline", 
+                      workplaces = "workplaces_percent_change_from_baseline", 
+                      residential = "residential_percent_change_from_baseline")
+
+# New facet labels for place categories
+dest_cats.labs <- c("Retail & Rec", "Grocery & Pharmacy", "Parks", "Transit Stations", "Workplaces", "Residential")
+names(dest_cats.labs) <- c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential")
+
+# The data is shown in tabular format, not very useful for analysis, so need to pivot the different categories into one column
+mobi_mco <- mobi_mco %>% pivot_longer(c("retail.rec", "grocery.pharmacy", "parks", "transit", "workplaces", "residential"), names_to = "category", values_to = "change.from.baseline")
+
+# Filter the table to pick up only national data; Add a column with 7-day rolling average
+mobi_mco <- mobi_mco %>% arrange(desc(category)) %>%
+  group_by(category) %>%
+  mutate(change.from.baseline.smooth = rollmean(change.from.baseline, 7, fill = NA)) %>%
+  ungroup()
+
+# Add a column to the dataset to indicate whether it is MCO 1 or MCO 3
+# Bin all daily case observations in MCO1 or MCO3, by date
+mobi_mco <- mobi_mco %>% mutate(mco = case_when(
+  (date >= ymd("2020-03-03") & date < ymd("2020-05-18")) ~ "MCO1", 
+  (date >= ymd("2021-05-11") & date < ymd("2021-06-30")) ~ "MCO3")) 
+
+# plot the data; re-using the labels defined in the mobility block. 
+mobi_plot <- ggplot() +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(start)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-1") %>% pull(end)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(start)), color = "#999999") +
+  geom_vline(xintercept = ymd(lockdowns %>% filter(lockdown == "MCO-3") %>% pull(end)), color = "#999999") +
+  geom_area(data = filter(mobi_mco, mco != "NA" & category %in% c("retail.rec", "grocery.pharmacy", "transit", "workplaces")), aes(x = date, y = change.from.baseline.smooth, color = category, fill = category), alpha = 0.33) +
+  scale_x_date(name = "Date", date_label = "%d-%b-%y") +
+  scale_y_continuous(name = "Change from baseline (%)") +
+  labs(title = "Routing requests to most destinations are significantly higher in MCO 3", subtitle = "Change in routing requests compared to baseline (Jan-2020 to Feb-2020)", caption = "MCO periods indicated by vertical lines.\nSource: Google Covid-19 Community Mobility Reports.") +  
+  theme(legend.position = "none") +
+  facet_grid(rows = vars(category), cols = vars(mco), labeller = labeller(category = dest_cats.labs), scales = "free_x") +
+  theme(panel.spacing.x = unit(4, "mm")) +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+
+mobi_plot 
+
+#  geom_rect(data = filter(lockdowns, lockdown == "MCO-1"), inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin = -Inf, ymax = +Inf), fill= 'red', alpha = 0.1) +
+
+```
+
