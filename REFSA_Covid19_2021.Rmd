@@ -65,19 +65,22 @@ covid_cases <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/ma
 covid_cases_p <- covid_cases %>% pivot_longer(!date, names_to = "country", values_to = "cases")
 
 # Filter dataset for Malaysia only and for the last 6 months. Filter a bit longer for 7-day rolling average.
-covid_cases_my <- filter(covid_cases_p, country == "Malaysia" & date > ymd("2020-10-15"))
+covid_cases_my <- filter(covid_cases_p, country == "Malaysia" & date > ymd("2021-08-01"))
 
 # Add a 7-day average line to the data and filter again for the last 6 months
 covid_cases_my <- covid_cases_my %>% mutate(cases_7ra = rollmean(cases, 7, fill = NA, align = "right")) %>% 
-  filter(date > ymd("2020-10-31"))
+  filter(date > ymd("2021-02-09"))
 
 # Plot plot plot
 covid_cases_my_plot <- ggplot(data = covid_cases_my, aes(x = date)) +
-  geom_col(aes(y = cases), color = "#FFDE00", fill = "#FFDE00") +
-  geom_line(aes(y = cases_7ra), color = "#1252B3") +
+  geom_col(aes(y = cases)) +
+  scale_fill_brewer(palette = "BuPu") +
+  geom_line(aes(y = cases_7ra)) +
   scale_x_date(name = "Date", date_breaks = "1 month", date_labels = "%b-%y") +
   scale_y_continuous(name = "Cases") +
-  labs(title = "Daily new cases are trending up since late March", subtitle = "Daily new cases and 7-day rolling average of new cases", caption = "Source: Our World in Data.")
+  scale_colour_brewer(palette = "BuPu") +
+  labs(title = "New cases are increasing quickly", subtitle = "Daily new cases and 7-day rolling average of new cases", caption = "Source: Our World in Data.") +
+  theme_minimal()
 
 covid_cases_my_plot
 
@@ -86,43 +89,138 @@ covid_cases_my_plot
 
 ## Vaccinations
 
-Our World In Data uses the metric "Share of people who have received at least one dose of Covid-19 vaccine." Adding in "Share of population registered for vaccination." 
+Vaccination data is based on Malaysia's MoH statistics. 
 
-```{r covid-vaccinations, echo=FALSE}
+```{r covid-vax-data, echo=FALSE}
 
-# Load data (compiled by Faiz)
-my_vaccinations <- read_csv("MY_Vaccination.csv", col_types = cols(
-  Date = col_date(format = "%d-%m-%Y"), 
-  category = col_character(), 
-  Registrations = col_double(),
-  First_dose = col_double(), 
-  Second_dose = col_double(), 
-  Total_doses = col_double()), skip_empty_rows = TRUE)
+# Load vaccination data from MoH GitHub
+my_vax <- read_csv("https://raw.githubusercontent.com/MoH-Malaysia/covid19-public/main/vaccination/vax_malaysia.csv")
 
-# Malaysian population
-my_pop <- 24270000
+# Load static data - population size
+my_pop <- read_csv("https://raw.githubusercontent.com/MoH-Malaysia/covid19-public/main/static/population.csv")
+
+```
+
+```{r covid-vax-prep, echo = FALSE}
+
+# Malaysian population pivot. Column 'pop' contains the total vaccinated population, this doesn't match the sum of the individual categories also included in the table. The individual categories 'pop_18' and 'pop_5' are for the respective vaccination groups. 
+my_pop_all_vax <- my_pop %>% pivot_longer(c("pop", "pop_18", "pop_60", "pop_12", "pop_5"), names_to = "pop_group", values_to = "pop_count")
+
+# Filter vax data for the columns we want
+my_vax_all <- my_vax %>% select(date, cumul_partial, cumul_full, cumul_booster)
+
+# Calculate net numbers for the chart areas to fit (otherwise we're double-counting across doses)
+my_vax_all <- my_vax_all %>% mutate(net_first = cumul_partial - cumul_full) %>% mutate(net_second = cumul_full - cumul_booster)
 
 # Pivot the data and remove lines where the date is NA
-my_vaccinations <- my_vaccinations %>% pivot_longer(c("Registrations", "First_dose", "Second_dose", "Total_doses"), names_to = "category", values_to = "pop_count") %>% filter(!is.na(Date))
+my_vaccinations <- my_vax_all %>% pivot_longer(c("cumul_partial", "cumul_full", "cumul_booster", "net_second", "net_first"), names_to = "category", values_to = "pop_count") %>% filter(!is.na(Date))
 
 # Add a column with the percentage of population
-my_vaccinations <- my_vaccinations %>% mutate(percentage = (pop_count / my_pop))
+my_pop_all = my_pop_all_vax %>% filter(pop_group == "pop" & state == "Malaysia") %>% pull(pop_count)
+my_vaccinations <- my_vaccinations %>% mutate(percentage = (pop_count / my_pop_all))
+
+```
+
+```{r covid-vax-plot, echo=FALSE}
+
+my_vax_data = filter(my_vaccinations, category %in% c("net_first", "net_second", "cumul_booster"))
 
 # Plot
-my_vaccinations_p <- ggplot(data = filter(my_vaccinations, category %in% c("Registrations", "First_dose", "Second_dose")), aes(x = Date)) +
-  geom_line(aes(y = percentage, colour = category)) + 
+my_vaccinations_p <- ggplot(data = my_vax_data, aes(x = date)) +
+#  geom_line(aes(y = percentage, colour = category)) +
+  geom_area(aes(y = percentage, fill = factor(my_vax_data$category, levels=c("net_first", "net_second", "cumul_booster"), ordered = TRUE))) + 
   geom_hline(yintercept = 1, colour = "#999999") +
-  scale_x_date(name = "Date", date_labels = "%d-%b-%y") +
+  scale_x_date(name = "Date", date_labels = "%b-%y") +
   scale_y_continuous(name = "% of population", labels = scales::percent) + 
-  scale_colour_brewer(palette = "Set1", labels = c("First dose", "Registrations", "Second dose")) +
-  labs(title = "Vaccination registration is sluggish and vaccine roll-out starting slow", subtitle = "Percentage of population who registered for vaccine and received at least one dose", caption = "Source: Ministry of Health Malaysia") +
-  theme(legend.position = "right", legend.title = element_blank())
+  scale_fill_brewer(palette = "BuPu", labels = c("One dose", "Two doses", "Booster")) +
+  labs(title = "Overall vaccination coverage is high but booster uptake sluggish", subtitle = "Percentage of population who received one dose, two doses, and booster", caption = "Source: Ministry of Health Malaysia") +
+  theme_minimal() +
+  theme(legend.position = "right", legend.title = element_blank(), axis.title.x = element_blank())
 
 my_vaccinations_p
 
 ```
 
+```{r covid-vax-group-data, echo = FALSE}
 
+# Filter vax data for the columns we want
+my_vax_group <- my_vax %>% select(date, cumul_partial, cumul_full, cumul_booster, cumul_partial_child, cumul_full_child, cumul_partial_adol, cumul_full_adol)
+
+# Add a 'booster' column for each group, to have comparable metrics across all categories
+my_vax_group <- my_vax_group %>%
+  mutate(cumul_booster_adol = 0) %>%
+  mutate(cumul_booster_child = 0) %>% 
+  mutate(cumul_booster_adult = cumul_booster)
+
+# Calculate net numbers for the chart areas to fit (otherwise we're double-counting across doses). 
+# Compute a rate for adults as well, by subtracting the child and adol totals from the partial and full numbers for the entire adult group. 
+my_vax_group <- my_vax_group %>% 
+  mutate(net_first_adult = (cumul_partial - cumul_partial_adol - cumul_partial_child) - (cumul_full - cumul_full_adol - cumul_full_child)) %>%
+  mutate(net_second_adult = (cumul_full - cumul_full_adol - cumul_full_child) - (cumul_booster - cumul_booster_adol - cumul_booster_child)) %>% 
+  mutate(net_first_child = cumul_partial_child - cumul_full_child) %>% 
+  mutate(net_second_child = cumul_full_child - cumul_booster_child) %>%
+  mutate(net_first_adol = cumul_partial_adol - cumul_full_adol) %>%
+  mutate(net_second_adol = cumul_full_adol - cumul_booster_adol)
+
+# Pivot the data and remove lines where the date is NA. This gives us a table with one column 'category' and the net amounts for each. 
+my_vax_group <- my_vax_group %>% pivot_longer(c("cumul_partial", "cumul_full", "cumul_booster", "net_second_adult", "net_first_adult", "cumul_booster_adult", "cumul_full_child", "cumul_partial_child", "cumul_full_adol", "cumul_partial_adol", "net_first_child", "net_second_child", "cumul_booster_child", "net_first_adol", "net_second_adol", "cumul_booster_adol"), names_to = "category", values_to = "pop_count") %>% filter(!is.na(Date))
+
+# We need a second column with the group (adult, adol, child) to be able to facet the charts. Creating this column based on the category name
+my_vax_group <- my_vax_group %>% mutate(group = case_when(
+  str_detect(category, "adult") ~ "adult",
+  str_detect(category, "adol") ~ "adol", 
+  str_detect(category, "child") ~ "child",
+  TRUE ~ "all"
+  ))
+
+# We need a third column for the metric, otherwise we can't facet the charts. For starters restricting to first and second dose, since children and adolescents do not yet have boosters. 
+my_vax_group <- my_vax_group %>% mutate(dose = case_when(
+  str_detect(category, "net_first") | str_detect(category, "partial") ~ "first",
+  str_detect(category, "net_second") | str_detect(category, "full") ~ "second",
+  str_detect(category, "booster") ~ "booster"
+  ))
+
+# Read population totals into variables for ease of use and speed
+my_vax_pop_18 <- my_pop_all_vax %>% filter(pop_group == "pop_18" & state == "Malaysia") %>% pull(pop_count)
+my_vax_pop_60 <- my_pop_all_vax %>% filter(pop_group == "pop_60" & state == "Malaysia") %>% pull(pop_count)
+my_vax_pop_12 <- my_pop_all_vax %>% filter(pop_group == "pop_12" & state == "Malaysia") %>% pull(pop_count)
+my_vax_pop_5 <- my_pop_all_vax %>% filter(pop_group == "pop_5" & state == "Malaysia") %>% pull(pop_count)
+
+# Add a column with the percentage of population
+my_vax_group <- my_vax_group %>% mutate(percentage = case_when(
+  group == "adult" ~ pop_count / (my_vax_pop_18),  # According to docs, 60+ pop not broken out in vax stats
+  group == "adol" ~ pop_count / (my_vax_pop_12),
+  group == "child" ~ pop_count / (my_vax_pop_5)
+  ))
+
+```
+
+
+```{r covid-vax-group-plot, echo = FALSE}
+
+# Select only necessary rows (net rows, essentially) - also filter in time for last 3 months
+# Find the latest date available in the data and go back 3 months
+my_vax_max_date <- my_vax_group %>% summarise(date_to = max(date)) %>% pull(date_to)
+date_start <- my_vax_max_date - months(3)
+my_vax_group_data <- my_vax_group %>% filter(date > date_start)
+my_vax_group_data <- my_vax_group_data %>% filter(category %in% c("net_first_adult", "net_second_adult", "cumul_booster_adult", "net_first_adol", "net_second_adol", "cumul_booster_adol", "net_first_child", "net_second_child", "cumul_booster_child"))
+
+# Plot
+my_vax_grp_p <- ggplot(data = my_vax_group_data, aes(x = date)) +
+  geom_area(aes(y = percentage, fill = factor(dose, levels=c("first", "second", "booster"), ordered = TRUE))) + 
+  geom_hline(yintercept = 1, colour = "#999999") +
+  scale_x_date(name = "Date", date_labels = "%b-%y") +
+  scale_y_continuous(name = "% of population", labels = scales::percent) + 
+  scale_fill_brewer(palette = "BuPu", labels = c("First", "Second", "Booster")) +
+  labs(title = "Vaccination percentage in children and adolescents", subtitle = "Percentage of population who received one dose, two doses", caption = "Source: Ministry of Health Malaysia") +
+  theme_minimal() +
+  theme(legend.position = "right", legend.title = element_blank(), axis.title.x = element_blank()) +
+  facet_wrap(~ factor(group, levels=c("adult", "adol", "child"), labels = c("18+", "12-17", "5-11"), ordered = TRUE))
+
+my_vax_grp_p
+
+
+```
 
  
 ## Tests, cases and positivity rate
@@ -143,8 +241,8 @@ covid_cases_pivot <- covid_cases_pm %>% pivot_longer(!date, names_to = "country"
 iso_codes <- c("MYS", "KOR")
 countries <- c("Malaysia", "South Korea")
 
-date_from <- ymd("2020-09-30")
-date_to <- ymd("2021-05-07")
+date_from <- ymd("2021-08-15")
+date_to <- ymd("2022-02-09")
 
 # Define a tibble with the dates of MCO/CMCO restrictions
 lockdowns <- tribble(
@@ -253,9 +351,11 @@ The charts below show the percent change compared to a baseline. The baseline is
 # ===== Google Mobility Reports =====
 # https://www.apple.com/covid19/mobility (alternative source)
 # Google provides data in two files (one per year), so merging them together here too. 
-mobi_py <- read_csv("2020_MY_Region_Mobility_Report.csv")
-mobi_cy <- read_csv("2021_MY_Region_Mobility_Report.csv")
-mobi <- full_join(mobi_py, mobi_cy)
+mobi_20 <- read_csv("2020_MY_Region_Mobility_Report.csv")
+mobi_21 <- read_csv("2021_MY_Region_Mobility_Report.csv")
+mobi_22 <- read_csv("2022_MY_Region_Mobility_Report.csv")
+mobi <- full_join(mobi_20, mobi_21)
+mobi <- full_join(mobi, mobi_22)
 
 # Filter the raw data to only include nationwide change and correct date range
 mobi_nation <- filter(mobi, is.na(sub_region_1) & date > date_from & date < date_to)
@@ -289,8 +389,8 @@ mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
   ungroup()
 
 # plot the data; re-using the labels defined in the mobility block. 
+# Removed the display of lockdowns here since there were no changes in the period we looked at.
 mobi_plot <- ggplot(data = mobi_nation) +
-  geom_rect(data = filter(lockdowns, start > date_from), inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin = -Inf, ymax = +Inf), fill= 'red', alpha = 0.1) +
   geom_area(aes(x = date, y = change.from.baseline.smooth, color = category, fill = category), alpha = 0.33) +
   scale_x_date(name = "Date", date_label = "%b-%y") +
   scale_y_continuous(name = "Change from baseline (%)") +
@@ -311,13 +411,13 @@ mobi_plot_transit <- ggplot(data = filter(mobi_nation, category == "transit")) +
   geom_area(aes(x = date, y = change.from.baseline), color = "#1252B3", fill = "#0D6EFF", alpha = 0.33) +
   scale_x_date(name = "Date") +
   scale_y_continuous(name = "Change from baseline (%)") +
-  theme(legend.position = "none") +
-  geom_vline(xintercept = ymd("2020-12-06")) +
-  geom_text(mapping = aes(x = ymd("2020-12-06"), y = 0, label = "interstate travel", hjust = 0, vjust = 0)) +
-  geom_vline(xintercept = ymd("2020-10-14")) +
-  geom_text(mapping = aes(x = ymd("2020-10-14"), y = 0, label = "MCO 2.0", hjust = 0, vjust = 0)) + 
-  geom_vline(xintercept = ymd("2021-01-13")) +
-  geom_text(mapping = aes(x = ymd("2021-01-13"), y = 0, label = "MCO 3.0", hjust = 0, vjust = 0))
+  theme(legend.position = "none")
+  # geom_vline(xintercept = ymd("2020-12-06")) +
+  # geom_text(mapping = aes(x = ymd("2020-12-06"), y = 0, label = "interstate travel", hjust = 0, vjust = 0)) +
+  # geom_vline(xintercept = ymd("2020-10-14")) +
+  # geom_text(mapping = aes(x = ymd("2020-10-14"), y = 0, label = "MCO 2.0", hjust = 0, vjust = 0)) + 
+  # geom_vline(xintercept = ymd("2021-01-13")) +
+  # geom_text(mapping = aes(x = ymd("2021-01-13"), y = 0, label = "MCO 3.0", hjust = 0, vjust = 0))
 
 mobi_plot_transit
 
