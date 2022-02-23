@@ -1,5 +1,5 @@
 ---
-title: "REFSA COVID-19 Response—MCO 2.0"
+title: "REFSA COVID-19 - Early 2022"
 author: "REFSA Research Team"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: 
@@ -73,12 +73,10 @@ covid_cases_my <- covid_cases_my %>% mutate(cases_7ra = rollmean(cases, 7, fill 
 
 # Plot plot plot
 covid_cases_my_plot <- ggplot(data = covid_cases_my, aes(x = date)) +
-  geom_col(aes(y = cases)) +
-  scale_fill_brewer(palette = "BuPu") +
-  geom_line(aes(y = cases_7ra)) +
-  scale_x_date(name = "Date", date_breaks = "1 month", date_labels = "%b-%y") +
+  geom_col(aes(y = cases), colour = "#91B7D9", fill="#91B7D9") +
+  geom_line(aes(y = cases_7ra), colour = "#2F5373") +
+  scale_x_date(breaks = breaks_pretty(), labels = label_date_short()) +
   scale_y_continuous(name = "Cases") +
-  scale_colour_brewer(palette = "BuPu") +
   labs(title = "New cases are increasing quickly", subtitle = "Daily new cases and 7-day rolling average of new cases", caption = "Source: Our World in Data.") +
   theme_minimal()
 
@@ -209,7 +207,7 @@ my_vax_group_data <- my_vax_group_data %>% filter(category %in% c("net_first_adu
 my_vax_grp_p <- ggplot(data = my_vax_group_data, aes(x = date)) +
   geom_area(aes(y = percentage, fill = factor(dose, levels=c("first", "second", "booster"), ordered = TRUE))) + 
   geom_hline(yintercept = 1, colour = "#999999") +
-  scale_x_date(name = "Date", date_labels = "%b-%y") +
+  scale_x_date(name = "Date", labels = label_date_short(), breaks = breaks_pretty()) +
   scale_y_continuous(name = "% of population", labels = scales::percent) + 
   scale_fill_brewer(palette = "BuPu", labels = c("First", "Second", "Booster")) +
   labs(title = "Vaccination percentage in children and adolescents", subtitle = "Percentage of population who received one dose, two doses", caption = "Source: Ministry of Health Malaysia") +
@@ -391,11 +389,12 @@ mobi_nation <- mobi_nation %>% arrange(desc(category)) %>%
 # plot the data; re-using the labels defined in the mobility block. 
 # Removed the display of lockdowns here since there were no changes in the period we looked at.
 mobi_plot <- ggplot(data = mobi_nation) +
-  geom_area(aes(x = date, y = change.from.baseline.smooth, color = category, fill = category), alpha = 0.33) +
-  scale_x_date(name = "Date", date_label = "%b-%y") +
+  geom_area(aes(x = date, y = change.from.baseline.smooth), colour = "#2F5373", fill = "#91B7D9", alpha = 0.33) +
+  scale_x_date(name = "Date", breaks = breaks_pretty(), labels = label_date_short()) +
   scale_y_continuous(name = "Change from baseline (%)") +
   labs(title = "Routing requests to most destinations remain below baseline", subtitle = "Change in routing requests compared to baseline (Jan-2020 to Feb-2020)", caption = "Shaded areas indicate MCO/CMCO restrictions.\nSource: Google Covid-19 Community Mobility Reports.") +  
-  theme(legend.position = "none") +
+  theme_minimal() +
+  theme(legend.position = "none", axis.title.x = element_blank()) +
   facet_wrap(~ category, labeller = labeller(category = dest_cats.labs)) +
   theme(panel.spacing.x = unit(4, "mm"))
 
@@ -449,7 +448,7 @@ Passenger movements data provide an insight into the health of the tourism secto
 
 # ===== MAHB Operating Statistics =====
 # From MAHB website
-mahb_ops <- read_csv("MAHBOperatingStatistics.csv")
+mahb_ops <- read_delim("MAHBOperatingStatistics_2021.csv", delim = ";", locale = locale(decimal_mark = ",", grouping_mark = ".", date_format = "%d/%m/%Y"))
 
 # Define a tibble with the travel restriction dates
 travel_res <- tribble(
@@ -462,19 +461,19 @@ travel_res <- tribble(
 
 # Plot - showing KLIA and MASB passengers as categories, summing up to the total for the entire system in Malaysia.
 # Also using a different palette that works better for the colours. 
-mahb_ops_plot <- ggplot(data = mahb_ops, aes(x = mahb_ops$date)) +
-  geom_rect(data = travel_res, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.1) +
-  geom_col(aes(y = mahb_ops$pax_mvmt_total, colour = airport, fill = airport)) +
-  scale_x_date(name = "Date", date_breaks = "6 month", date_minor_breaks = "1 month", date_labels = "%b-%y") +
+mahb_ops_plot <- ggplot(data = mahb_ops, aes(x = date)) +
+  geom_bar(aes(y = pax_mvmt_total, colour = airport, fill = airport), stat = "identity") +
+  scale_x_date(breaks = breaks_pretty(), labels = label_date_short()) +
   scale_y_continuous(name = "Passenger movements (thousands)") + 
   scale_colour_brewer(palette = "Paired") +
   scale_fill_brewer(palette = "Paired") +
-  labs(title = "MAHB airports total passenger movements are still far below 2019 levels", subtitle = "Total monthly passenger movement (thousands) From September 2019 to February 2021", caption = "Shaded areas indicate interstate travel restrictions in Klang Valley.\nSource: MAHB operating statistics.") +
-  theme(legend.position = "right")
+  theme_minimal() +
+  labs(title = "Total passenger movements are still far below pre-pandemic levels", subtitle = "MAHB Airports total monthly passenger movement (thousands), September 2019 to December 2021", caption = "Source: MAHB operating statistics.") +
+  theme(legend.position = "right", axis.title.x = element_blank(), legend.title = element_blank())
 
 mahb_ops_plot
 
-```
+```   
 ## Retail sales
 
 Another leading indicator for economic performance, retail sales. 
@@ -508,13 +507,13 @@ retail_sales_plot + facet_wrap(~ category)
 ```{r covid-retail-sa, echo=FALSE}
 
 # Load data - from DOSM then turned into CSV data
-retail_sales_sa <- read_csv("MY_WholesaleRetail_SeasAdj.csv")
+retail_sales_sa <- read_delim("MY_WholesaleRetail_SeasAdj_Jan20Dec21.csv", delim = ";", locale = locale(decimal_mark = ",", grouping_mark = ".", date_format = "%d/%m/%Y"))
 
 # Pivot the sales data to longer form
 retail_sales_sa <- retail_sales_sa %>% pivot_longer(c("Total", "Wholesale", "Retail", "Motor"), names_to = "category", values_to = "Sales")
 
 # Filter for 18 months, same as passenger movement
-retail_sales_sa <- filter(retail_sales_sa, Date > ymd("2019-11-30") & category %in% c("Wholesale", "Retail", "Motor"))
+retail_sales_sa <- filter(retail_sales_sa, category %in% c("Wholesale", "Retail", "Motor"))
 
 # Build ancillary tibble for displaying 'high watermarks' on the facet charts
 # Basically, we're looking for the max value in each category in the dataset we have, then extract it as the y value for the hline 
@@ -524,26 +523,94 @@ retail_sales_sa <- filter(retail_sales_sa, Date > ymd("2019-11-30") & category %
 hline_max_sales <- tribble(
   ~category, ~max_sales,
   #--------|-------
-  "Wholesale", filter(retail_sales_sa, category == "Wholesale") %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales),
-  "Retail", filter(retail_sales_sa, category == "Retail") %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales),
-  "Motor", filter(retail_sales_sa, category == "Motor") %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales)
+  "Wholesale", filter(retail_sales_sa, category == "Wholesale" & Date < ymd("2020-03-01")) %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales),
+  "Retail", filter(retail_sales_sa, category == "Retail" & Date < ymd("2020-03-01")) %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales),
+  "Motor", filter(retail_sales_sa, category == "Motor" & Date < ymd("2020-03-01")) %>% arrange(desc(Sales)) %>% slice(1) %>% pull(Sales)
 )
 
 # Plot
-retail_sales_sa_plot <- ggplot(data = retail_sales_sa, aes(x = Date)) +
-  geom_rect(data = lockdowns, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='red', alpha = 0.1) +
-  geom_line(aes(y = Sales, colour = category)) +
+retail_sales_sa_plot <- ggplot(data = retail_sales_sa %>% filter(Date > ymd("2019-12-01")), aes(x = Date)) +
+  geom_rect(data = lockdowns, inherit.aes = FALSE, aes(xmin = start, xmax = end, ymin=-Inf, ymax=+Inf), fill='gray50', alpha = 0.1) +
+  geom_line(aes(y = Sales), colour = "#2F5373") +
   geom_hline(yintercept = 100, colour = "#999999") +
-  geom_hline(data = hline_max_sales, aes(yintercept = max_sales, colour = category), linetype = "dashed") +
-  scale_x_date(name = "Date", date_labels = "%b-%y") +
+  geom_hline(data = hline_max_sales, aes(yintercept = max_sales), colour = "#2F5373", linetype = "dashed") +
+  scale_x_date(breaks = breaks_pretty(), labels = label_date_short()) +
   scale_y_continuous(name = "Volume Index") + 
-  scale_colour_brewer(palette = "Set1") +
-  scale_fill_brewer(palette = "Set1") +
-  labs(title = "Retail sales have not yet recovered to previous levels", subtitle = "Seasonally adjusted volume index of wholesale and retail (2015=100)", caption = "Dashed line represents the 'high watermark' for each sector.\nShaded areas indicate MCO/CMCO restrictions.\nSource: DOSM.") +
-  theme(legend.position = "none")
-
-retail_sales_sa_plot + facet_wrap(~ category)
+  labs(title = "Retail sales show an uneven trajectory", subtitle = "Seasonally adjusted volume index of motor vehicle, wholesale and retail sales (2015=100)", caption = "Dashed line represents the 'high watermark' for each sector pre-pandemic.\nShaded areas indicate MCO/CMCO restrictions.\nSource: DOSM.") +
+  theme_minimal() +
+  theme(legend.position = "none", axis.title.x = element_blank()) +
+  facet_wrap(~ factor(category, levels = c("Wholesale", "Retail", "Motor"), ordered = TRUE)) +
+  theme(panel.spacing.x = unit(4, "mm"))
+  
+retail_sales_sa_plot
 
 
 ```
 
+
+## School closures
+Malaysia is among the countries where schools have been closed (fully or partially) the longest, when compared to ASEAN or other countries. The educational lag that the affected children would have incurred practically cannot be made up anymore, which bodes ill for their prospects. A shift in policy regarding schools is therefore urgently needed. 
+
+```{r covid-school-closures, echo=FALSE}
+
+# Load data; CSV file directly from UNESCO website
+school_closure <- read_csv("https://en.unesco.org/sites/default/files/duration_school_closures.csv", skip=18)
+
+# Rename columns to be more usable
+school_closure <- rename(school_closure, 
+              country = "Country",
+              iso = "ISO",
+              pandemic_total = "Duration of FULL and PARTIAL school closures (in weeks)",
+              pandemic_full = "Duration of FULL closures (in weeks)",
+              pandemic_partial = "Duration of PARTIAL closures (in weeks)",
+              full_mar20_aug20 = "Duration of FULL closures from Mar-Aug 20 (in weeks)",
+              full_sep20_aug21 = "Duration of FULL closures from Sep 20 - Aug 21 (in weeks)",
+              full_sep21_oct21 = "Duration of FULL closures from Sep 21 - Oct 21 (in weeks)",
+              partial_mar20_aug20 = "Duration of PARTIAL closures from Mar-Aug 20 (in weeks)",
+              partial_sep20_aug21 = "Duration of PARTIAL closures from Sep 20 - Aug 21 (in weeks)",
+              partial_sep21_oct21 = "Duration of PARTIAL closures from Sep 21 - Oct 21 (in weeks)")
+
+# Define ASEAN countries for comparison
+asean_iso_codes <- c("BRN", "KHM", "IDN", "LAO", "MYS", "MMR", "PHL", "SGP", "THA", "VNM")
+
+# Indicate which countries are in ASEAN
+school_closure <- school_closure %>% mutate(region = ifelse(iso %in% asean_iso_codes, "ASEAN", NA))
+
+# Calculate average closure durations for ASEAN
+sc_asean_avg <- school_closure %>% filter(region == "ASEAN") %>% summarise(country = "ASEAN", iso = NA, region = "ASEAN", across(pandemic_total:partial_sep21_oct21, mean))
+
+# Calculate average closure durations for the world
+sc_world_avg <- school_closure %>% summarise(country = "World", iso = NA, region = "World", across(pandemic_total:partial_sep21_oct21, mean))
+
+# Bind rows with averages to the country data
+sc <- bind_rows(school_closure, sc_asean_avg, sc_world_avg)
+
+# Pivot table for easier graphing
+sc <- sc %>% pivot_longer(c("pandemic_total", "pandemic_full", "pandemic_partial", "full_mar20_aug20", "full_sep20_aug21", "full_sep21_oct21", "partial_mar20_aug20", "partial_sep20_aug21", "partial_sep21_oct21"), names_to = "metric", values_to = "duration")
+
+# Categorise closure duration in type: partial or full
+sc <- sc %>% mutate(type = case_when(
+  str_detect(metric, "partial") ~ "partial",
+  str_detect(metric, "full") ~ "full", 
+  str_detect(metric, "total") ~ "total"))
+
+# Categorise closure period
+sc <- sc %>% mutate(period = case_when(
+  str_detect(metric, "mar20_aug20") ~ "mar20-aug20",
+  str_detect(metric, "sep20_aug21") ~ "sep20-aug21",
+  str_detect(metric, "sep21_oct21") ~ "sep21-oct21",
+  str_detect(metric, "pandemic") ~ "pandemic",
+))
+
+# Plot
+sc_p <- ggplot(data = sc %>% filter(country %in% c("Malaysia", "ASEAN", "World") & type %in% c("full", "partial") & period == "pandemic"), aes(x = factor(country, levels=c("Malaysia", "ASEAN", "World"), ordered = TRUE))) +
+  geom_col(aes(y = duration, fill = factor(type, levels=c("partial", "full"), labels = c("Partial closure", "Full closure"), ordered = TRUE))) + 
+  scale_y_continuous(name = "Closure duration (weeks)") + 
+  scale_fill_brewer(palette = "Paired") +
+  labs(title = "School closures in Malaysia are longer than ASEAN and world averages", subtitle = "Duration in weeks of full and partial school closures", caption = "Source: UNESCO") + 
+  theme_minimal() +
+  theme(legend.position = "right", legend.title = element_blank(), axis.title.x = element_blank())
+
+sc_p
+
+```
